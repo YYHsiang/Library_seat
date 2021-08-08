@@ -4,13 +4,26 @@ from django.shortcuts import render
 from django.views.decorators import gzip
 from django.http import StreamingHttpResponse, response
 from .models import Camera
+from main.models import Location
+
+import time
+import os
+from pathlib import Path
+from django.core.files import File  # you need this somewhere
+import urllib
 
 import cv2
 import threading
 
+
+
 class VideoCamera(object):
-    def __init__(self):
-        self.video = cv2.VideoCapture('rtsp://192.168.137.61:8080/h264_pcm.sdp')
+    def __init__(self, ip, name):
+        self.video = cv2.VideoCapture(ip)
+        self.ip = ip
+        self.name = name
+        self.pretime = 0 #thumbnail update time refence
+        self.thumbnail_update_interval = 10 #thumbnail update interval
         (self.grabbed, self.frame) = self.video.read()
         threading.Thread(target=self.update, args=()).start()
 
@@ -19,6 +32,14 @@ class VideoCamera(object):
 
     def get_frame(self):
         image = self.frame
+
+        ## update thumbnail
+        if(time.time() - self.pretime > self.thumbnail_update_interval):
+            print(self.name + "-- thumbnail updated")
+            url = "media/img/thumbnail/" + self.name + ".jpg"
+            cv2.imwrite(url, image)
+            self.pretime = time.time()
+
         _, jpeg = cv2.imencode('.jpg', image)
         return jpeg.tobytes()
 
@@ -27,28 +48,40 @@ class VideoCamera(object):
             (self.grabbed, self.frame) = self.video.read()
 
 
-def gen(camera):
+def gen(camera_gen):
     while True:
-        frame = camera.get_frame()
-        yield(frame)
-        #yield(b'--frame\r\n'
-        #      b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
+        frame = camera_gen.get_frame()
+        yield(b'--frame\r\n'
+              b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
         #source: https://www.reddit.com/r/learnpython/comments/3l242p/what_this_code_belongs_to_from_a_camera_streaming/
 
 
 
 @gzip.gzip_page
-def livefe(request):
+def livefe(response, ip):
+    print("LIVE:: " + ip)
     try:
-        cam = VideoCamera()
+        cam_temp = Camera.objects.get(ip_address = ip)
+        cam = VideoCamera("rtsp://" + ip + "/h264_pcm.sdp", cam_temp.name)
+        
         return StreamingHttpResponse(gen(cam), content_type="multipart/x-mixed-replace;boundary=frame")
     except:  # This is bad! replace it with proper handling
         pass
 
 def camera_list(response):
-    try:
-        
-        frame = Camera.objects.get(name="test")
-        return render(response, "ip_camera/camera_list.html", {'frame':frame})
+    location_list = Location.objects.all()
+    try:       
+        camera = Camera.objects.all()
+
+        #change thumbnail's url 
+        for cam_temp in camera:
+            THUMBNAIL_PATH = "media/img/thumbnail/" + cam_temp.name + ".jpg"
+            img_temp = cv2.imread(THUMBNAIL_PATH)
+            if img_temp is not None:
+                cam_temp.thumbnail.save(os.path.basename(THUMBNAIL_PATH),File(open(THUMBNAIL_PATH, 'rb')))
+                cam_temp.save()
+                
+
+        return render(response, "ip_camera/camera_list.html", {"location_list":location_list, 'camera':camera})
     except:
         pass

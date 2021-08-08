@@ -3,44 +3,22 @@
 {% block title %}Camera list{% endblock title %}
 
 {% block content %}
-<div  style="width: 1000px">
+<div  style="width: 1000px; margin-top: 100px">
     <div class="row row-cols-1 row-cols-md-3 g-4">
-        <div class="col">
-            <div class="card">
-            <img src="{{frame.frame.url}}" class="card-img-top" alt="...">
-            <div class="card-body">
-                <h5 class="card-title">Card title</h5>
-                <p class="card-text">This is a longer card with supporting text below as a natural lead-in to additional content. This content is a little bit longer.</p>
-            </div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card">
-            <img src="..." class="card-img-top" alt="...">
-            <div class="card-body">
-                <h5 class="card-title">Card title</h5>
-                <p class="card-text">This is a longer card with supporting text below as a natural lead-in to additional content. This content is a little bit longer.</p>
-            </div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card">
-            <img src="..." class="card-img-top" alt="...">
-            <div class="card-body">
-                <h5 class="card-title">Card title</h5>
-                <p class="card-text">This is a longer card with supporting text below as a natural lead-in to additional content.</p>
-            </div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card">
-            <img src="..." class="card-img-top" alt="...">
-            <div class="card-body">
-                <h5 class="card-title">Card title</h5>
-                <p class="card-text">This is a longer card with supporting text below as a natural lead-in to additional content. This content is a little bit longer.</p>
-            </div>
-            </div>
-        </div>
+        {% for cam in camera.all %}
+            <a class="btn" href="/livefe/{{ cam.ip_address }}">
+                <div class="col">
+                    <div class="card">
+                    <img src="{{cam.thumbnail.url}}" class="card-img-top" alt="...">
+                    <div class="card-body">
+                        <h5 class="card-title">{{cam.name}}</h5>
+                        <p class="card-text">{{cam.ip_address}}</p>
+                    </div>
+                    </div>
+                </div>
+            </a>
+        {% endfor %}
+
     </div>
 </div>
 {% endblock content %}
