@@ -38,9 +38,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'crispy_forms',
     'main.apps.MainConfig',
     'register.apps.RegisterConfig',
     'ip_camera.apps.IpCameraConfig',
+    
 ]
 
 MIDDLEWARE = [
@@ -138,3 +140,6 @@ STATICFILES_DIRS = (os.path.join(BASE_DIR, 'static'), )
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/' 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media/') # Path where media is stored
+
+#crispy form
+CRISPY_TEMPLATE_PACK = 'bootstrap4'

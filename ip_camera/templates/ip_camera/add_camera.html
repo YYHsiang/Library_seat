@@ -1,0 +1,15 @@
+{% extends 'main/base.html' %}
+
+{% block title %}Add new camera{% endblock title %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <div style="width: 1000px; margin-top: 40px">
+        <h2 style="padding-bottom:25px;">Add New Camera</h2>
+        <form method="post" class="form-group">
+            {% csrf_token %} <!--一定要加上，否則送出表單會發生錯誤-->       
+            {{form|crispy}}       <!--引入表單，使用crispy form-->
+            <br/>
+            <button type="submit", name="add", class="btn btn-primary">Add Camera</button>
+        </form>
+    </div>
+{% endblock content %}

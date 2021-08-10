@@ -1,11 +1,12 @@
 #source: https://stackoverflow.com/questions/49680152/opencv-live-stream-from-camera-in-django-webpage
 
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.views.decorators import gzip
 from django.http import StreamingHttpResponse, response
 from .models import Camera
 from main.models import Location
 
+#update thumbnail
 import time
 import os
 from pathlib import Path
@@ -15,7 +16,8 @@ import urllib
 import cv2
 import threading
 
-
+#new camera form
+from .forms import *
 
 class VideoCamera(object):
     def __init__(self, ip, name):
@@ -75,7 +77,7 @@ def camera_list(response):
 
         #change thumbnail's url 
         for cam_temp in camera:
-            THUMBNAIL_PATH = "media/img/thumbnail/" + cam_temp.name + ".jpg"
+            THUMBNAIL_PATH = "/media/img/thumbnail/" + cam_temp.name + ".jpg"
             img_temp = cv2.imread(THUMBNAIL_PATH)
             if img_temp is not None:
                 cam_temp.thumbnail.save(os.path.basename(THUMBNAIL_PATH),File(open(THUMBNAIL_PATH, 'rb')))
@@ -85,3 +87,17 @@ def camera_list(response):
         return render(response, "ip_camera/camera_list.html", {"location_list":location_list, 'camera':camera})
     except:
         pass
+
+
+def add_new_camera(response):
+    location_list = Location.objects.all()
+    if response.method == "POST": 
+        form = Add_new_camera(response.POST, response.FILES)
+
+        if form.is_valid():
+            form.save()
+            return redirect("/cameras/")
+
+    else:
+        form = Add_new_camera()
+    return render(response, "ip_camera/add_camera.html", {"location_list":location_list, "form":form})

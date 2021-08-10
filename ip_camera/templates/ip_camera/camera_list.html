@@ -9,15 +9,27 @@
             <a class="btn" href="/livefe/{{ cam.ip_address }}">
                 <div class="col">
                     <div class="card">
-                    <img src="{{cam.thumbnail.url}}" class="card-img-top" alt="...">
-                    <div class="card-body">
-                        <h5 class="card-title">{{cam.name}}</h5>
-                        <p class="card-text">{{cam.ip_address}}</p>
-                    </div>
+                        <img src="{{cam.thumbnail.url}}" class="card-img-top" alt="...">
+                        <div class="card-body">
+                            <h5 class="card-title">{{cam.name}}</h5>
+                            <p class="card-text">{{cam.ip_address}}</p>
+                        </div>
                     </div>
                 </div>
             </a>
         {% endfor %}
+
+        <!--add new camera-->
+        <a class="btn" href="/add_new_camera/">
+            <div class="col">
+                <div class="card">
+                    <img src="/media/img/icon/add_new_icon.png" class="card-img-top" alt="...">
+                    <div class="card-body">
+                        <h5 class="card-title">Add New Camera</h5>
+                    </div>
+                </div>
+            </div>
+        </a>
 
     </div>
 </div>
