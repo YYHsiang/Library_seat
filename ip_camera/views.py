@@ -21,7 +21,7 @@ from .forms import *
 
 class VideoCamera(object):
     def __init__(self, ip, name):
-        self.video = cv2.VideoCapture(ip)
+        self.video = cv2.VideoCapture(ip)   
         self.ip = ip
         self.name = name
         self.pretime = 0 #thumbnail update time refence
@@ -65,6 +65,7 @@ def livefe(response, ip):
     try:
         cam_temp = Camera.objects.get(ip_address = ip)
         cam = VideoCamera("rtsp://" + ip + "/h264_pcm.sdp", cam_temp.name)
+        #! 重複多開問題
         
         return StreamingHttpResponse(gen(cam), content_type="multipart/x-mixed-replace;boundary=frame")
     except:  # This is bad! replace it with proper handling
@@ -74,16 +75,7 @@ def camera_list(response):
     location_list = Location.objects.all()
     try:       
         camera = Camera.objects.all()
-
-        #change thumbnail's url 
-        for cam_temp in camera:
-            THUMBNAIL_PATH = "/media/img/thumbnail/" + cam_temp.name + ".jpg"
-            img_temp = cv2.imread(THUMBNAIL_PATH)
-            if img_temp is not None:
-                cam_temp.thumbnail.save(os.path.basename(THUMBNAIL_PATH),File(open(THUMBNAIL_PATH, 'rb')))
-                cam_temp.save()
-                
-
+            
         return render(response, "ip_camera/camera_list.html", {"location_list":location_list, 'camera':camera})
     except:
         pass
