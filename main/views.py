@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from .models import Location
+from .models import Location, Seat
 
 # Create your views here.
 def  home(response):
@@ -21,3 +21,16 @@ def location(response, location_name):
 
     except Location.DoesNotExist:
         return render(response, "main/error_404.html", {})
+
+def create(response):
+    print(response.POST.get('seat',0));
+    if response.method == "POST":
+        s = Seat()
+        floor = Location.objects.get(name="1F")
+        s.location = floor
+        s.seat_number=1
+        s.seat_position_x =10
+        s.seat_position_y =20
+        s.occupy=True
+        s.save()
+    
