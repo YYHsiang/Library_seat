@@ -1,77 +1,149 @@
 import sys
 import argparse
-from yolo import YOLO, detect_video
+from yolo import YOLO
 from PIL import Image
+import os
+import tkinter as tk
+from PIL import ImageTk
+import requests
+
+left_mouse_down_x = 0
+left_mouse_down_y = 0
+left_mouse_up_x = 0
+left_mouse_up_y = 0
+sole_rectangle = None
+cord = []
+x=YOLO()
+postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1"}
+
+def ok_event(): 
+    win.destroy()
+    detect_img(x)
 
 def detect_img(yolo):
     while True:
-        img = input('Input image filename:')
+    #img = input('Input image filename:')
         try:
-            image = Image.open(img)
+            image = Image.open('test2.jpg')
         except:
             print('Open Error! Try again!')
             continue
         else:
-            r_image = yolo.detect_image(image)
-            r_image.show()
+            for i in range(len(cord)):
+                img=image.crop((cord[i][1],cord[i][2],cord[i][3],cord[i][4]))
+                r_image, people_num = yolo.detect_image(img)
+                cord[i][5]=people_num
+                #r_image.show()
+                postdata_toserver["seat"]=cord[i][0]
+                postdata_toserver["location"]=cord[i][6]
+                postdata_toserver["occupy"]=str(people_num)
+                r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
     yolo.close_session()
 
 FLAGS = None
 
+def left_mouse_down(event):
+  # print('鼠标左键按下')
+  global left_mouse_down_x, left_mouse_down_y
+  left_mouse_down_x = event.x
+  left_mouse_down_y = event.y
+ 
+def left_mouse_up(event):
+  # print('鼠标左键释放')
+  global left_mouse_up_x, left_mouse_up_y, seat_name, seat_floor
+  left_mouse_up_x = event.x
+  left_mouse_up_y = event.y
+  seat_name=entry.get()
+  seat_floor=entry1.get()
+  listbox.insert('end', seat_name)
+  corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
+       left_mouse_up_x, left_mouse_up_y)
+ 
+def moving_mouse(event):
+  # print('鼠标左键按下并移动')
+  global sole_rectangle
+  global left_mouse_down_x, left_mouse_down_y
+  moving_mouse_x = event.x
+  moving_mouse_y = event.y
+  if sole_rectangle is not None:
+    canvas.delete(sole_rectangle) # 删除前一个矩形
+  sole_rectangle = canvas.create_rectangle(left_mouse_down_x, left_mouse_down_y, moving_mouse_x,
+                       moving_mouse_y, outline='red')
+ 
+def corp_img(source_path, save_path, x_begin, y_begin, x_end, y_end):
+  if x_begin < x_end:
+    min_x = x_begin
+    max_x = x_end
+  else:
+    min_x = x_end
+    max_x = x_begin
+  if y_begin < y_end:
+    min_y = y_begin
+    max_y = y_end
+  else:
+    min_y = y_end
+    max_y = y_begin
+  cord.append([])
+  cord[(len(cord)-1)].append(seat_name)
+  cord[(len(cord)-1)].append(min_x)
+  cord[(len(cord)-1)].append(min_y)
+  cord[(len(cord)-1)].append(max_x)
+  cord[(len(cord)-1)].append(max_y)
+  cord[(len(cord)-1)].append(0)
+  cord[(len(cord)-1)].append(seat_floor)
+  print(cord)
+
+def undo_event():
+  if len(cord)>0:
+    cord.pop()
+    listbox.delete(len(cord))
+    print(cord)
+
+
 if __name__ == '__main__':
-    # class YOLO defines the default value, so suppress any default here
-    parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS)
-    '''
-    Command line options
-    '''
-    parser.add_argument(
-        '--model', type=str,
-        help='path to model weight file, default ' + YOLO.get_defaults("model_path")
-    )
 
-    parser.add_argument(
-        '--anchors', type=str,
-        help='path to anchor definitions, default ' + YOLO.get_defaults("anchors_path")
-    )
+    global var
 
-    parser.add_argument(
-        '--classes', type=str,
-        help='path to class definitions, default ' + YOLO.get_defaults("classes_path")
-    )
+    win = tk.Tk()
+    win.geometry('1000x1000')
 
-    parser.add_argument(
-        '--gpu_num', type=int,
-        help='Number of GPU to use, default ' + str(YOLO.get_defaults("gpu_num"))
-    )
+    frame1 = tk.Frame(win,bg='red',bd=10)
+    frame1.pack()
+    frame2=tk.Frame(win,bg='yellow',bd=20)
+    frame2.pack()
+    frame3=tk.Frame(win,bg='blue',bd=20)
+    frame3.pack()
 
-    parser.add_argument(
-        '--image', default=False, action="store_true",
-        help='Image detection mode, will ignore all positional arguments'
-    )
-    '''
-    Command line positional arguments -- for video detection mode
-    '''
-    parser.add_argument(
-        "--input", nargs='?', type=str,required=False,default='./path2your_video',
-        help = "Video input path"
-    )
+    var = tk.StringVar()
+    entry = tk.Entry(frame3)
+    entry.pack()
+    entry1 = tk.Entry(frame3)
+    entry1.pack()
+    listbox = tk.Listbox(frame3, listvariable=var)
+    listbox.pack()
 
-    parser.add_argument(
-        "--output", nargs='?', type=str, default="",
-        help = "[Optional] Video output path"
-    )
+    undobutton = tk.Button(frame2, text='Undo', command=undo_event)
+    undobutton.pack()
+    okbutton = tk.Button(frame2, text='Ok', command=ok_event)
+    okbutton.pack()
 
-    FLAGS = parser.parse_args()
-
-    if FLAGS.image:
-        """
-        Image detection mode, disregard any remaining command line arguments
-        """
-        print("Image detection mode")
-        if "input" in FLAGS:
-            print(" Ignoring remaining command line arguments: " + FLAGS.input + "," + FLAGS.output)
-        detect_img(YOLO(**vars(FLAGS)))
-    elif "input" in FLAGS:
-        detect_video(YOLO(**vars(FLAGS)), FLAGS.input, FLAGS.output)
-    else:
-        print("Must specify at least video_input_path.  See usage with --help.")
+    img_path = 'test2.jpg'
+    image = Image.open(img_path)
+    image_x, image_y = image.size
+    screenwidth = win.winfo_screenwidth()
+    screenheight = win.winfo_screenheight()
+    if image_x > screenwidth or image_y > screenheight:
+      print('The picture size is too big,max should in:{}x{}, your:{}x{}'.format(screenwidth,
+                                            screenheight,
+                                            image_x,
+                                            image_y))
+    img = ImageTk.PhotoImage(image)
+    canvas = tk.Canvas(frame1, width=image_x, height=image_y, bg='pink')
+    i = canvas.create_image(0, 0, anchor='nw', image=img)
+    canvas.pack()
+    canvas.bind('<Button-1>', left_mouse_down) # 鼠标左键按下
+    canvas.bind('<ButtonRelease-1>', left_mouse_up) # 鼠标左键释放
+    canvas.bind('<B1-Motion>', moving_mouse) # 鼠标左键按下并移动
+    win.mainloop()
+    
+   
