@@ -26,11 +26,14 @@ def create(response):
     print(response.POST.get('seat',0));
     if response.method == "POST":
         s = Seat()
-        floor = Location.objects.get(name="1F")
+        floor = Location.objects.get(name=(response.POST.get('location',0)))
         s.location = floor
-        s.seat_number=1
+        s.seat_number=response.POST.get('seat',0)
         s.seat_position_x =10
         s.seat_position_y =20
-        s.occupy=True
+        if response.POST.get('occupy',0) >"0":
+            s.occupy=True
+        else:
+            s.occupy=False
         s.save()
     
