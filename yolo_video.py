@@ -14,7 +14,7 @@ left_mouse_up_y = 0
 sole_rectangle = None
 cord = []
 #x=YOLO()
-postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1"}
+postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1","camera": "0"}
 
 def ok_event(): 
     win.destroy()
@@ -36,6 +36,7 @@ def detect_img(yolo):
                 #r_image.show()
                 postdata_toserver["seat"]=cord[i][0]
                 postdata_toserver["location"]=cord[i][6]
+                postdata_toserver["camera"]=cord[i][7]
                 postdata_toserver["occupy"]=str(people_num)
                 r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
     yolo.close_session()
@@ -50,11 +51,12 @@ def left_mouse_down(event):
  
 def left_mouse_up(event):
   # print('鼠标左键释放')
-  global left_mouse_up_x, left_mouse_up_y, seat_name, seat_floor
+  global left_mouse_up_x, left_mouse_up_y, seat_name, seat_floor, camera_number
   left_mouse_up_x = event.x
   left_mouse_up_y = event.y
   seat_name=seat_number_entry.get()
   seat_floor=floor_entry.get()
+  camera_number=camera_entry.get()
   listbox.insert('end', seat_name)
   corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
        left_mouse_up_x, left_mouse_up_y)
@@ -91,6 +93,7 @@ def corp_img(source_path, save_path, x_begin, y_begin, x_end, y_end):
   cord[(len(cord)-1)].append(max_y)
   cord[(len(cord)-1)].append(0)
   cord[(len(cord)-1)].append(seat_floor)
+  cord[(len(cord)-1)].append(camera_number)
   print(cord)
 
 def undo_event():
@@ -123,14 +126,20 @@ if __name__ == '__main__':
     floor_label.grid(column=0, row=1, ipadx=5, pady=5, sticky=tk.W+tk.N)
     floor_entry = tk.Entry(frame3)
     floor_entry.grid(column=1, row=1, padx=10, pady=5, sticky=tk.N)
+    
+    camera_label = tk.Label(frame3,text = "Camera")
+    camera_label.grid(column=0, row=2, ipadx=5, pady=5, sticky=tk.W+tk.N)
+    camera_entry = tk.Entry(frame3)
+    camera_entry.grid(column=1, row=2, padx=10, pady=5, sticky=tk.N)
+
     var = tk.StringVar()
     listbox = tk.Listbox(frame3, listvariable=var)
     listbox.grid(column=2, row=0, padx=10, pady=5, sticky=tk.N)
 
-    undobutton = tk.Button(frame2, text='Undo', command=undo_event)
-    undobutton.pack()
-    okbutton = tk.Button(frame2, text='Ok', command=ok_event)
-    okbutton.pack()
+    undobutton = tk.Button(frame2, text='Undo', command=undo_event, width=15)
+    undobutton.pack(side='left')
+    okbutton = tk.Button(frame2, text='Ok', command=ok_event, width=15)
+    okbutton.pack(side='right')
 
     img_path = 'test2.jpg'
     image = Image.open(img_path)
