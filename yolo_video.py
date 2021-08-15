@@ -13,12 +13,12 @@ left_mouse_up_x = 0
 left_mouse_up_y = 0
 sole_rectangle = None
 cord = []
-x=YOLO()
+#x=YOLO()
 postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1"}
 
 def ok_event(): 
     win.destroy()
-    detect_img(x)
+    #detect_img(x)
 
 def detect_img(yolo):
     while True:
@@ -53,8 +53,8 @@ def left_mouse_up(event):
   global left_mouse_up_x, left_mouse_up_y, seat_name, seat_floor
   left_mouse_up_x = event.x
   left_mouse_up_y = event.y
-  seat_name=entry.get()
-  seat_floor=entry1.get()
+  seat_name=seat_number_entry.get()
+  seat_floor=floor_entry.get()
   listbox.insert('end', seat_name)
   corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
        left_mouse_up_x, left_mouse_up_y)
@@ -114,13 +114,18 @@ if __name__ == '__main__':
     frame3=tk.Frame(win,bg='blue',bd=20)
     frame3.pack()
 
+    seat_number_label = tk.Label(frame3,text = "Seat number")
+    seat_number_label.grid(column=0, row=0, ipadx=5, pady=5, sticky=tk.W+tk.N)
+    seat_number_entry = tk.Entry(frame3)
+    seat_number_entry.grid(column=1, row=0, padx=10, pady=5, sticky=tk.N)
+    
+    floor_label = tk.Label(frame3,text = "Floor")
+    floor_label.grid(column=0, row=1, ipadx=5, pady=5, sticky=tk.W+tk.N)
+    floor_entry = tk.Entry(frame3)
+    floor_entry.grid(column=1, row=1, padx=10, pady=5, sticky=tk.N)
     var = tk.StringVar()
-    entry = tk.Entry(frame3)
-    entry.pack()
-    entry1 = tk.Entry(frame3)
-    entry1.pack()
     listbox = tk.Listbox(frame3, listvariable=var)
-    listbox.pack()
+    listbox.grid(column=2, row=0, padx=10, pady=5, sticky=tk.N)
 
     undobutton = tk.Button(frame2, text='Undo', command=undo_event)
     undobutton.pack()
