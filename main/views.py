@@ -35,8 +35,8 @@ def create(response):
         s = Seat()
         s.location = Location.objects.get(name=floor)
         s.seat_number=seat_number
-        s.seat_position_x =0
-        s.seat_position_y =0
+        s.seat_position_x = (int(seat_number)%10) * 70
+        s.seat_position_y = 0
         if occupy >"0":
             s.occupy=True
         else:

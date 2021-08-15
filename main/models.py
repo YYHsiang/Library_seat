@@ -9,6 +9,7 @@ class Location(models.Model):
 
 class Seat(models.Model):
     location = models.ForeignKey(Location, on_delete=models.CASCADE)
+    camera_number = models.IntegerField()
     seat_number = models.IntegerField()
     seat_position_x = models.FloatField(max_length=200)
     seat_position_y = models.FloatField(max_length=200)
