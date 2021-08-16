@@ -50,6 +50,7 @@ class VideoCamera(object):
             (self.grabbed, self.frame) = self.video.read()
 
 
+
 def gen(camera_gen):
     while True:
         frame = camera_gen.get_frame()
@@ -66,7 +67,7 @@ def livefe(response, ip):
         cam_temp = Camera.objects.get(ip_address = ip)
         cam = VideoCamera("rtsp://" + ip + "/h264_pcm.sdp", cam_temp.name)
         #! 重複多開問題
-        
+
         return StreamingHttpResponse(gen(cam), content_type="multipart/x-mixed-replace;boundary=frame")
     except:  # This is bad! replace it with proper handling
         pass

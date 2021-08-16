@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     'main.apps.MainConfig',
     'register.apps.RegisterConfig',
     'ip_camera.apps.IpCameraConfig',
+    'analysis.apps.AnalysisConfig',
+    'rest_framework',
     
 ]
 

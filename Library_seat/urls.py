@@ -23,6 +23,7 @@ urlpatterns = [
     path('', include("main.urls")),
     path('', include("register.urls")),
     path('', include("ip_camera.urls")),
+    path('', include("analysis.urls")),
 ]
 
 #image
