@@ -5,5 +5,5 @@ from django.views.generic import TemplateView #as_view() function
 
 urlpatterns = [
     path("analysis/", views.analysis, name='analysis'),
-    path("api/chart/data/", ChartData.as_view()),
+    path("api/chart/data/", ChartData.as_view(), name='api-data'),
 ]

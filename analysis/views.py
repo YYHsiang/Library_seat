@@ -11,7 +11,6 @@ def analysis(response):
 
     return render(response, "analysis/analysis.html", {"location_list": location_list})
 
-
 class ChartData(APIView):
     authentication_classes = []
     permission_classes = []   
