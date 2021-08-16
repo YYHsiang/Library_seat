@@ -6,101 +6,105 @@ import os
 import tkinter as tk
 from PIL import ImageTk
 import requests
-
+import cv2
 left_mouse_down_x = 0
 left_mouse_down_y = 0
 left_mouse_up_x = 0
 left_mouse_up_y = 0
 sole_rectangle = None
 cord = []
-#x=YOLO()
+x=YOLO()
 postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1","camera": "0"}
 
 def ok_event(): 
     win.destroy()
-    #detect_img(x)
+    detect_img(x)
 
 def detect_img(yolo):
+    video_path = "seat_video1.mp4"
+    capture = cv2.VideoCapture(video_path)
+    fps = int(capture.get(cv2.CAP_PROP_FPS))
+    total_frame = capture.get(cv2.CAP_PROP_FRAME_COUNT)
     while True:
-    #img = input('Input image filename:')
-        try:
-            image = Image.open('test2.jpg')
-        except:
-            print('Open Error! Try again!')
-            continue
-        else:
-            for i in range(len(cord)):
-                img=image.crop((cord[i][1],cord[i][2],cord[i][3],cord[i][4]))
-                r_image, people_num = yolo.detect_image(img)
-                cord[i][5]=people_num
-                #r_image.show()
-                postdata_toserver["seat"]=cord[i][0]
-                postdata_toserver["location"]=cord[i][6]
-                postdata_toserver["camera"]=cord[i][7]
-                postdata_toserver["occupy"]=str(people_num)
-                r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
+        for j in range(int(total_frame)):
+            ret, frame = capture.read()
+            if not ret:
+                break
+            #一秒
+            if j % fps == 0:
+                image=Image.fromarray(frame)
+                image = image.resize((1200, 600))
+                for i in range(len(cord)):
+                    img=image.crop((cord[i][1],cord[i][2],cord[i][3],cord[i][4]))
+                    r_image, people_num = yolo.detect_image(img)
+                    cord[i][5]=people_num
+                    
+                    postdata_toserver["seat"]=cord[i][0]
+                    postdata_toserver["location"]=cord[i][6]
+                    postdata_toserver["camera"]=cord[i][7]
+                    postdata_toserver["occupy"]=str(people_num)
+                    r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
+                    
     yolo.close_session()
 
-FLAGS = None
-
 def left_mouse_down(event):
-  # print('鼠标左键按下')
-  global left_mouse_down_x, left_mouse_down_y
-  left_mouse_down_x = event.x
-  left_mouse_down_y = event.y
+    # print('鼠标左键按下')
+    global left_mouse_down_x, left_mouse_down_y
+    left_mouse_down_x = event.x
+    left_mouse_down_y = event.y
  
 def left_mouse_up(event):
-  # print('鼠标左键释放')
-  global left_mouse_up_x, left_mouse_up_y, seat_name, seat_floor, camera_number
-  left_mouse_up_x = event.x
-  left_mouse_up_y = event.y
-  seat_name=seat_number_entry.get()
-  seat_floor=floor_entry.get()
-  camera_number=camera_entry.get()
-  listbox.insert('end', seat_name)
-  corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
+    # print('鼠标左键释放')
+    global left_mouse_up_x, left_mouse_up_y, seat_name, seat_floor, camera_number
+    left_mouse_up_x = event.x
+    left_mouse_up_y = event.y
+    seat_name=seat_number_entry.get()
+    seat_floor=floor_entry.get()
+    camera_number=camera_entry.get()
+    listbox.insert('end', seat_name)
+    corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
        left_mouse_up_x, left_mouse_up_y)
  
 def moving_mouse(event):
-  # print('鼠标左键按下并移动')
-  global sole_rectangle
-  global left_mouse_down_x, left_mouse_down_y
-  moving_mouse_x = event.x
-  moving_mouse_y = event.y
-  if sole_rectangle is not None:
-    canvas.delete(sole_rectangle) # 删除前一个矩形
-  sole_rectangle = canvas.create_rectangle(left_mouse_down_x, left_mouse_down_y, moving_mouse_x,
+    # print('鼠标左键按下并移动')
+    global sole_rectangle
+    global left_mouse_down_x, left_mouse_down_y
+    moving_mouse_x = event.x
+    moving_mouse_y = event.y
+    if sole_rectangle is not None:
+        canvas.delete(sole_rectangle) # 删除前一个矩形
+    sole_rectangle = canvas.create_rectangle(left_mouse_down_x, left_mouse_down_y, moving_mouse_x,
                        moving_mouse_y, outline='red')
  
 def corp_img(source_path, save_path, x_begin, y_begin, x_end, y_end):
-  if x_begin < x_end:
-    min_x = x_begin
-    max_x = x_end
-  else:
-    min_x = x_end
-    max_x = x_begin
-  if y_begin < y_end:
-    min_y = y_begin
-    max_y = y_end
-  else:
-    min_y = y_end
-    max_y = y_begin
-  cord.append([])
-  cord[(len(cord)-1)].append(seat_name)
-  cord[(len(cord)-1)].append(min_x)
-  cord[(len(cord)-1)].append(min_y)
-  cord[(len(cord)-1)].append(max_x)
-  cord[(len(cord)-1)].append(max_y)
-  cord[(len(cord)-1)].append(0)
-  cord[(len(cord)-1)].append(seat_floor)
-  cord[(len(cord)-1)].append(camera_number)
-  print(cord)
+    if x_begin < x_end:
+        min_x = x_begin
+        max_x = x_end
+    else:
+        min_x = x_end
+        max_x = x_begin
+    if y_begin < y_end:
+        min_y = y_begin
+        max_y = y_end
+    else:
+        min_y = y_end
+        max_y = y_begin
+    cord.append([])
+    cord[(len(cord)-1)].append(seat_name)
+    cord[(len(cord)-1)].append(min_x)
+    cord[(len(cord)-1)].append(min_y)
+    cord[(len(cord)-1)].append(max_x)
+    cord[(len(cord)-1)].append(max_y)
+    cord[(len(cord)-1)].append(0)
+    cord[(len(cord)-1)].append(seat_floor)
+    cord[(len(cord)-1)].append(camera_number)
+    print(cord)
 
 def undo_event():
-  if len(cord)>0:
-    cord.pop()
-    listbox.delete(len(cord))
-    print(cord)
+    if len(cord)>0:
+        cord.pop()
+        listbox.delete(len(cord))
+        print(cord)
 
 
 if __name__ == '__main__':
@@ -108,7 +112,7 @@ if __name__ == '__main__':
     global var
 
     win = tk.Tk()
-    win.geometry('1000x1000')
+    win.geometry('1200x1000')
 
     frame1 = tk.Frame(win,bg='red',bd=10)
     frame1.pack()
@@ -141,16 +145,10 @@ if __name__ == '__main__':
     okbutton = tk.Button(frame2, text='Ok', command=ok_event, width=15)
     okbutton.pack(side='right')
 
-    img_path = 'test2.jpg'
+    img_path = 'out.jpg'
     image = Image.open(img_path)
+    image=image.resize((1200, 600))
     image_x, image_y = image.size
-    screenwidth = win.winfo_screenwidth()
-    screenheight = win.winfo_screenheight()
-    if image_x > screenwidth or image_y > screenheight:
-      print('The picture size is too big,max should in:{}x{}, your:{}x{}'.format(screenwidth,
-                                            screenheight,
-                                            image_x,
-                                            image_y))
     img = ImageTk.PhotoImage(image)
     canvas = tk.Canvas(frame1, width=image_x, height=image_y, bg='pink')
     i = canvas.create_image(0, 0, anchor='nw', image=img)
