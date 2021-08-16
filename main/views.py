@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from .models import Location, Seat
+from .models import Location, Seat, Occupy_History
 
 # Create your views here.
 def  home(response):
@@ -41,6 +41,5 @@ def create(response):
             s.occupy=True
         else:
             s.occupy=False
-        s.save()
-        
+        s.save()        
     

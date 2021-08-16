@@ -4,15 +4,15 @@
 <script>
     {% block jquery %}
         var endpoint = "/api/chart/data/" // {% url "api-data" %}
-        var labels = []
-        var Chart_Data = []
+        var location = [] //list all location
+        var location_seat_cnt = [] //seats in each location
 
         $.ajax({
             method: "GET",
             url: endpoint,
             success: function(data){
-                labels = data.location
-                Chart_Data = data.location_seat_cnt
+                location = data.location
+                location_seat_cnt = data.location_seat_cnt
                 setChart()
                 console.log(data)
             },
@@ -23,14 +23,14 @@
         })
 
         function setChart(){
-            var ctx = document.getElementById('myChart').getContext('2d');
+            var ctx = document.getElementById('location_seat_Chart').getContext('2d');
             var myChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels: location,
                     datasets: [{
                         label: 'number of Seats',
-                        data: Chart_Data,
+                        data: location_seat_cnt,
                         backgroundColor: [
                             'rgba(255, 99, 132, 0.2)',
                             'rgba(54, 162, 235, 0.2)',
@@ -67,6 +67,7 @@
 
 {% block content %}
     <h2>Analysis</h2>
-    <canvas id="myChart" width="400" height="400"></canvas>
+    <canvas id="location_seat_Chart" width="400" height="400"></canvas>
+    <canvas id="seat_occupy_Chart" width="400" height="400"></canvas>
     
 {% endblock content %}
