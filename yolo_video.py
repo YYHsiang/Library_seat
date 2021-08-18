@@ -1,10 +1,10 @@
 import sys
 import argparse
 from yolo import YOLO
-from PIL import Image
+from PIL import Image, ImageTk
 import os
 import tkinter as tk
-from PIL import ImageTk
+from tkinter import filedialog, messagebox
 import requests
 import cv2
 left_mouse_down_x = 0
@@ -106,6 +106,12 @@ def undo_event():
         listbox.delete(len(cord))
         print(cord)
 
+def openSetupImage(): #select an image to setup bounding box
+    global setup_img, setup_image
+    img_path = filedialog.askopenfilename(initialdir="/", title="open an image", filetypes= ( ("all files", "*.*"), ("jpg files", "*.jpg") ))
+    image = Image.open(img_path)
+    setup_image=image.resize((1200, 600))
+    setup_img = ImageTk.PhotoImage(image)
 
 if __name__ == '__main__':
 
@@ -144,18 +150,20 @@ if __name__ == '__main__':
     undobutton.pack(side='left')
     okbutton = tk.Button(frame2, text='Ok', command=ok_event, width=15)
     okbutton.pack(side='right')
+    
+    #select a image to setup bounding box
+    openSetupImage()
 
-    img_path = 'out.jpg'
-    image = Image.open(img_path)
-    image=image.resize((1200, 600))
-    image_x, image_y = image.size
-    img = ImageTk.PhotoImage(image)
-    canvas = tk.Canvas(frame1, width=image_x, height=image_y, bg='pink')
-    i = canvas.create_image(0, 0, anchor='nw', image=img)
+    #bulit canvas
+    setup_image_x, setup_image_y = setup_image.size
+    canvas = tk.Canvas(frame1, width=setup_image_x, height=setup_image_y, bg='pink')
+    i = canvas.create_image(0, 0, anchor='nw', image=setup_img)
     canvas.pack()
+
     canvas.bind('<Button-1>', left_mouse_down) # 鼠标左键按下
     canvas.bind('<ButtonRelease-1>', left_mouse_up) # 鼠标左键释放
     canvas.bind('<B1-Motion>', moving_mouse) # 鼠标左键按下并移动
+
     win.mainloop()
     
    
