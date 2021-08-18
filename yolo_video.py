@@ -1,6 +1,6 @@
 import sys
 import argparse
-from yolo import YOLO
+#from yolo import YOLO
 from PIL import Image, ImageTk
 import os
 import tkinter as tk
@@ -13,12 +13,12 @@ left_mouse_up_x = 0
 left_mouse_up_y = 0
 sole_rectangle = None
 cord = []
-x=YOLO()
+#x=YOLO()
 postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1","camera": "0"}
 
 def ok_event(): 
     win.destroy()
-    detect_img(x)
+    #detect_img(x)
 
 def detect_img(yolo):
     video_path = "seat_video1.mp4"
@@ -107,11 +107,11 @@ def undo_event():
         print(cord)
 
 def openSetupImage(): #select an image to setup bounding box
-    global setup_img, setup_image
+    global setup_img, setup_image, img_path
     img_path = filedialog.askopenfilename(initialdir="/", title="open an image", filetypes= ( ("all files", "*.*"), ("jpg files", "*.jpg") ))
     image = Image.open(img_path)
     setup_image=image.resize((1200, 600))
-    setup_img = ImageTk.PhotoImage(image)
+    setup_img = ImageTk.PhotoImage(setup_image)
 
 if __name__ == '__main__':
 
@@ -119,6 +119,9 @@ if __name__ == '__main__':
 
     win = tk.Tk()
     win.geometry('1200x1000')
+
+    #fix the missing cursor in text box bug. cause by filedialog.
+    win.update_idletasks()
 
     frame1 = tk.Frame(win,bg='red',bd=10)
     frame1.pack()
@@ -153,7 +156,7 @@ if __name__ == '__main__':
     
     #select a image to setup bounding box
     openSetupImage()
-
+    
     #bulit canvas
     setup_image_x, setup_image_y = setup_image.size
     canvas = tk.Canvas(frame1, width=setup_image_x, height=setup_image_y, bg='pink')
