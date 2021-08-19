@@ -5,6 +5,7 @@ import argparse
 import os
 from tkinter import *
 from tkinter import filedialog, messagebox
+from yolo3.utils import rand
 from PIL import Image, ImageTk
 import requests
 import cv2
@@ -85,7 +86,7 @@ class DB_4point():
         self.conn = sqlite3.connect(DATABASE_PATH)
         self.c = self.conn.cursor()
 
-        self.c.execute("SELECT *, oid FROM " + table_name)
+        self.c.execute("SELECT * FROM " + table_name)
         records = self.c.fetchall()
         print(records)
 
@@ -136,7 +137,6 @@ class DB_4point():
         self.conn.close()
 
 
-
 class database_window():
     def __init__(self):
         self.db_window=Toplevel()
@@ -172,21 +172,69 @@ class database_window():
         delete_btn.grid(row=3, column=2)
 
         
-
+    # show all files in db
     def show_query(self):
         print("--SHOW QUERY--")
         db_win = DB_4point()
         db_win_records = db_win.query(TABLE_NAME)
 
-        print_records = ''
+        files = []
+        '''
+        2d array=[[file_name, seat_cnt, location, camera_name], [...],...]
+        '''
         if db_win_records is None:
-            print_records = 'No Data'
+            messagebox.showerror("No data", "Database is Empty!")
         else:
             for record in db_win_records:
-                print_records += str(record) + "\n"
+                # collect all file name, assume SAME file_name with SAME location and camera_name
+                if files == []:
+                    files.append([])
+                    files[0].append(record[0])
+                    files[0].append(1) #count seats with same file name
+                    files[0].append(record[6]) #location
+                    files[0].append(record[7]) #camera_name
+                else:
+                    #check for duplicate
+                    ifnew = 0
+                    for index in files:
+                        if record[0] in index[0]:
+                            ifnew =False
+                        else:
+                            ifnew =True
 
-        label_query = Label(self.file_list, text=print_records)
-        label_query.grid(row=0, column= 0, pady=5, padx= 5)
+                    #if file name in record already exist in file, add seat cnt.
+                    if ifnew:
+                        files.append([])
+                        files[-1].append(record[0])
+                        files[-1].append(1) #count seats with same file name
+                        files[-1].append(record[6]) #location
+                        files[-1].append(record[7]) #camera_name
+
+                    #if file name in record doesnt exist in file, then add one.
+                    else:
+                        i = files.index(index)
+                        files[i][1] +=1 
+                    
+        print(files)
+        f_name, seat_num, locat, cam_n = '','','',''
+        for file in files:
+            f_name += str(file[0]) +'\n'
+            seat_num += str(file[1]) +'\n'
+            locat += str(file[2]) +'\n'
+            cam_n += str(file[3]) +'\n'
+
+        # label for query data
+        label_f_n_file = Label(self.file_list, text=f_name).grid(row=1, column= 0, pady=5, padx= 2)
+        label_s_n_file = Label(self.file_list, text=seat_num).grid(row=1, column= 1, pady=5, padx= 2)
+        label_loca_file = Label(self.file_list, text=locat).grid(row=1, column= 2, pady=5, padx= 2)
+        label_cam_file = Label(self.file_list, text=cam_n).grid(row=1, column= 3, pady=5, padx= 2)
+
+        # label for query title        
+        label_f_n = Label(self.file_list, text="File name").grid(row=0, column= 0, pady=5, padx= 2)
+        label_s_n = Label(self.file_list, text="Seat #").grid(row=0, column= 1, pady=5, padx= 2)
+        label_loca = Label(self.file_list, text="Location").grid(row=0, column= 2, pady=5, padx= 2)
+        label_cam = Label(self.file_list, text="Cam name").grid(row=0, column= 3, pady=5, padx= 2)
+
 
     #add bounding_box_list to database
     def add_new(self, file_name):
@@ -211,6 +259,7 @@ class database_window():
         global bounding_box_list
         bounding_box_list = []
         for record in records:
+            #set entry to previous value
             bounding_box_listbox.insert('end', record[1])
 
             bounding_box_list.append([])
@@ -224,7 +273,11 @@ class database_window():
             bounding_box_list[(len(bounding_box_list)-1)].append(record[7])
 
         #print(bounding_box_list)
+        seat_number_entry.insert(0, str(int(record[1]) + 1))
+        floor_entry.insert(0, str(record[6]))
+        camera_entry.insert(0, str(record[7]))
         self.db_window.destroy()
+        win.focus()
 
 
     #delete bounding_box_list in database
@@ -290,6 +343,10 @@ def left_mouse_up(event):
         bounding_box_listbox.insert('end', seat_name)
         corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
         left_mouse_up_x, left_mouse_up_y)
+
+    #seat number + 1 automatically
+    seat_number_entry.delete(0,'end')
+    seat_number_entry.insert(0,str(int(seat_name)+ 1))
  
 def moving_mouse(event):
     #print('鼠标左键按下并移动')
