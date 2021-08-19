@@ -273,8 +273,11 @@ class database_window():
             bounding_box_list[(len(bounding_box_list)-1)].append(record[7])
 
         #print(bounding_box_list)
+        seat_number_entry.delete(0,'end')
         seat_number_entry.insert(0, str(int(record[1]) + 1))
+        floor_entry.delete(0,'end')
         floor_entry.insert(0, str(record[6]))
+        camera_entry.delete(0,'end')
         camera_entry.insert(0, str(record[7]))
         self.db_window.destroy()
         win.focus()
