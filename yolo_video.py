@@ -1,5 +1,6 @@
 import sys
 import argparse
+import math
 #from yolo import YOLO
 
 import os
@@ -19,12 +20,16 @@ left_mouse_up_y = 0
 sole_rectangle = None
 
 # store all bounding box select by user
+'''
+bounding_box_list = ["seat_name", point1, point2, point3, point4, 0, "location", "camera_name"]
+'''
 bounding_box_list = []
 
 # 4 point clicking counter
 point_cnt = 0
 sole_polygon = None
 point_bounding_box_list = [] #temporally store bound for future use
+sole_polygon_list = [] # for draw polygon
 
 #x=YOLO()
 postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1","camera": "0"}
@@ -363,12 +368,104 @@ class Tool():
             canvas.unbind('<B1-Motion>')
             canvas.bind('<Button-1>', self.point_mouse_down)
 
+    # TODO: divide selected aera
+    def divide(self):
+        if divider_entry.get() == '' or len(point_bounding_box_list) != 4:
+            messagebox.showerror('Error', 'Wrong input value')
+        else:
+            #find long side
+            side1, side2 = self.divide_point()
+    
+    def divide_point(self):
+        '''
+        return two list which contain the divided point in each long side.
+        FULL LIST 1: [(280, 304), [539.0, 247.5], (798, 191)]
+        FULL LIST 2: [(344, 345), [603.0, 277.5], (862, 210)]
+        the list data in between the tuples is the divide point
+        '''
+        segment = int(divider_entry.get())
+        pt1, pt2, pt3, pt4 = point_bounding_box_list
+
+        #line (pt1,pt2) > line (pt2,pt3) 
+        if math.hypot(pt2[0] - pt1[0], pt2[1] - pt1[1]) > math.hypot(pt3[0] - pt2[0], pt3[1] - pt2[1]):
+            # two long side, later will insert divide point
+            long_side1 = [pt1, pt2]
+            long_side2 = [pt4, pt3]
+        else:
+            long_side1 = [pt2, pt3]
+            long_side2 = [pt1, pt4]
+        #print("long side 1: "+ str(long_side1))
+
+        # find long side distant
+        long_side1_dist = math.hypot(long_side1[0][0] - long_side1[1][0], long_side1[0][1] - long_side1[1][1])
+        long_side2_dist = math.hypot(long_side2[0][0] - long_side2[1][0], long_side2[0][1] - long_side2[1][1])
+
+        #find distant in each segment
+        long_side1_seg_dist = long_side1_dist / segment
+        long_side2_seg_dist = long_side2_dist / segment
+        #print("DIST: "+ str(long_side1_seg_dist))
+
+        # caculate ratio
+        # ex: x_ratio = (pt2.x - pt1.x)/ dist
+        long_side1_x_ratio = (long_side1[1][0] - long_side1[0][0]) / long_side1_dist
+        long_side1_y_ratio = (long_side1[1][1] - long_side1[0][1]) / long_side1_dist
+        #print("X RATIO: "+ str(long_side1_x_ratio))
+        #print("Y RATIO: "+ str(long_side1_y_ratio))
+
+        long_side2_x_ratio = (long_side2[1][0] - long_side2[0][0]) / long_side2_dist
+        long_side2_y_ratio = (long_side2[1][1] - long_side2[0][1]) / long_side2_dist
+
+        # caculate divide point
+        long_side1_div_pt = []
+        long_side2_div_pt = []
+
+        for point in range(1,segment):
+            long_side1_div_pt.append([(long_side1[0][0] + point * long_side1_seg_dist * long_side1_x_ratio), (long_side1[0][1] + point * long_side1_seg_dist * long_side1_y_ratio)])
+            long_side2_div_pt.append([(long_side2[0][0] + point * long_side2_seg_dist * long_side2_x_ratio), (long_side2[0][1] + point * long_side2_seg_dist * long_side2_y_ratio)])
+        #print("DIVIDE point: " + str(long_side1_div_pt))
+
+        # insert divide point to original long side list
+        for div_pt in range(len(long_side1_div_pt)):
+            long_side1.insert(1 + div_pt ,long_side1_div_pt[div_pt])
+            long_side2.insert(1 + div_pt ,long_side2_div_pt[div_pt])
+        print("FULL LIST 1: " + str(long_side1))
+        print("FULL LIST 2: " + str(long_side2))
+
+        return long_side1, long_side2
+
     # TODO: 4 point selecting tool
     def point_mouse_down(self, event):
         print('--POINT MOUSE DOWN--')
-        global point_cnt, sole_polygon
+        global point_cnt, sole_polygon, point_bounding_box_list, sole_polygon_list
         seat_name=seat_number_entry.get()
+        
 
+        if point_cnt == 0:
+            point_bounding_box_list = []
+            sole_polygon_list = []
+            point_bounding_box_list.append((event.x,event.y))
+            #draw polygon
+            sole_polygon_list.append(event.x)
+            sole_polygon_list.append(event.y)
+            point_cnt += 1
+
+        elif point_cnt < 4:
+            point_bounding_box_list.append((event.x,event.y))
+            #draw polygon
+            sole_polygon_list.append(event.x)
+            sole_polygon_list.append(event.y)
+
+            if point_cnt == 3:
+                if sole_polygon is not None:
+                    canvas.delete(sole_polygon) # 删除前一个矩形
+                sole_polygon = canvas.create_polygon(sole_polygon_list, outline='red', fill='')
+
+                point_cnt = 0
+            else:
+                point_cnt += 1
+        print(point_bounding_box_list)
+
+        '''
         if seat_number_entry.get() == "" or floor_entry.get() == "" or camera_entry.get() == "":
             messagebox.showerror("Error","Please Enter parameter")
         else:
@@ -402,6 +499,7 @@ class Tool():
                     point_cnt += 1
 
         print(bounding_box_list)
+        '''
 
 
     def rect_left_mouse_down(self, event):
@@ -533,44 +631,61 @@ if __name__ == '__main__':
     frame1.grid(row=0,column=0)
     frame2=Frame(win,bg='yellow',bd=20)
     frame2.grid(row=0,column=1)
+    # select tool frame
     select_tool_frame = LabelFrame(frame2, text="Select Tool")
-    select_tool_frame.grid(row=0, column=0, columnspan=1,pady=10)
+    select_tool_frame.grid(row=0, column=0, columnspan=2, pady=10, sticky='W')
+    # divider Entry frame
+    divider_frame = LabelFrame(frame2, text="Divider")
+    divider_frame.grid(row=1, column=0, columnspan=2, pady=10, sticky='W')
+
+    # set tool to rect tool
+    tool = Tool() # Selecting tools
+    
+    #? ============ divider frame ===========
+    divider_label = Label(divider_frame, text= 'divide into:')
+    divider_label.grid(row=0, column=0, pady= 5)
+    divider_entry = Entry(divider_frame)
+    divider_entry.grid(row=0, column=1)
+    divider_entry.insert(0,"1")
+    divider_btn = Button(divider_frame, text="Done", command= tool.divide)
+    divider_btn.grid(row=0, column=2, padx=5)
+    #? ============ divider frame ===========
 
     #? ============ frame 2 ===========
     #Seat number label and Entry
     seat_number_label = Label(frame2,text = "Seat number")
-    seat_number_label.grid(column=0, row=1, ipadx=5, pady=5, sticky=W+N)
+    seat_number_label.grid(column=0, row=2, ipadx=5, pady=5, sticky=W+N)
     seat_number_entry = Entry(frame2)
-    seat_number_entry.grid(column=1, row=1, padx=10, pady=5, sticky=N)
+    seat_number_entry.grid(column=1, row=2, padx=10, pady=5, sticky=N)
 
     #bounding box list
     var = StringVar()
     bounding_box_listbox = Listbox(frame2, listvariable=var)
-    bounding_box_listbox.grid(column=1, row=2, padx=10, pady=5, sticky=N)
+    bounding_box_listbox.grid(column=1, row=3, padx=10, pady=5, sticky=N)
     
     #Location label and Entry
     floor_label = Label(frame2,text = "Floor")
-    floor_label.grid(column=0, row=3, ipadx=5, pady=5, sticky=W+N)
+    floor_label.grid(column=0, row=4, ipadx=5, pady=5, sticky=W+N)
     floor_entry = Entry(frame2)
-    floor_entry.grid(column=1, row=3, padx=10, pady=5, sticky=N)
+    floor_entry.grid(column=1, row=4, padx=10, pady=5, sticky=N)
     
     #Camera name label and Entry
     camera_label = Label(frame2,text = "Camera")
-    camera_label.grid(column=0, row=4, ipadx=5, pady=5, sticky=W+N)
+    camera_label.grid(column=0, row=5, ipadx=5, pady=5, sticky=W+N)
     camera_entry = Entry(frame2)
-    camera_entry.grid(column=1, row=4, padx=10, pady=5, sticky=N)
+    camera_entry.grid(column=1, row=5, padx=10, pady=5, sticky=N)
 
     # undo button to clear last bounding box
     undobutton = Button(frame2, text='Undo', command=undo_event, width=15)
-    undobutton.grid(row=5, column=0, columnspan=1)
+    undobutton.grid(row=6, column=0, columnspan=1)
 
     #create database button
     db_button = Button(frame2, text="Database", command=database_window, width=15)
-    db_button.grid(row=6, column=0, columnspan=3,pady=(30,0))
+    db_button.grid(row=7, column=0, columnspan=3,pady=(30,0))
 
     #proceed to YOLO
     okbutton = Button(frame2, text='YOLO detect', command=ok_event, width=15)
-    okbutton.grid(row=7, column=0, columnspan=3,pady=10)
+    okbutton.grid(row=8, column=0, columnspan=3,pady=10)
     #? ============ frame 2 ===========
 
     
@@ -584,8 +699,6 @@ if __name__ == '__main__':
     i = canvas.create_image(0, 0, anchor='nw', image=setup_img)
     canvas.pack()
 
-    # set tool to rect tool
-    tool = Tool() # Selecting tools
     tool.change_tool("rect")
 
     win.mainloop()
