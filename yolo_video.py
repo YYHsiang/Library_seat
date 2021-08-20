@@ -23,6 +23,7 @@ bounding_box_list = []
 
 # 4 point clicking counter
 point_cnt = 0
+sole_polygon = None
 
 #x=YOLO()
 postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1","camera": "0"}
@@ -324,6 +325,7 @@ class Tool():
             #print("rectttt")
             bounding_box_list = []
 
+            # recreate button to dispaly DISABLE
             rect_select_btn = Button(select_tool_frame, text="Rect", state= DISABLED, 
                                     command= lambda: self.change_tool("rect"), width=5)
             rect_select_btn.grid(row=0, column=0,padx= 10,pady= 5)
@@ -342,7 +344,7 @@ class Tool():
         elif tool.tool == "point":
             #print("pointtttt")
             bounding_box_list = []
-
+            # recreate button to dispaly DISABLE
             rect_select_btn = Button(select_tool_frame, text="Rect", state= NORMAL,
                                 command= lambda: self.change_tool("rect"), width=5)
             rect_select_btn.grid(row=0, column=0,padx= 10,pady= 5)
@@ -359,7 +361,7 @@ class Tool():
     # TODO: 4 point selecting tool
     def point_mouse_down(self, event):
         print('--POINT MOUSE DOWN--')
-        global point_cnt
+        global point_cnt, sole_polygon
         seat_name=seat_number_entry.get()
 
         if seat_number_entry.get() == "" or floor_entry.get() == "" or camera_entry.get() == "":
@@ -368,11 +370,13 @@ class Tool():
             if point_cnt == 0:
                 bounding_box_list.append([])
                 bounding_box_list[(-1)].append(seat_number_entry.get())
-                bounding_box_list[(-1)].append((event.x, event.y))
+                bounding_box_list[(-1)].append(event.x)
+                bounding_box_list[(-1)].append(event.y)
                 point_cnt += 1
 
             elif point_cnt < 4:
-                bounding_box_list[(-1)].append((event.x, event.y))
+                bounding_box_list[(-1)].append(event.x)
+                bounding_box_list[(-1)].append(event.y)
 
                 if point_cnt == 3:
                     bounding_box_list[-1].append(0)
@@ -383,6 +387,11 @@ class Tool():
                     #seat number + 1 automatically
                     seat_number_entry.delete(0,'end')
                     seat_number_entry.insert(0,str(int(seat_name)+ 1))
+
+                    if sole_polygon is not None:
+                        canvas.delete(sole_polygon) # 删除前一个矩形
+                    sole_polygon = canvas.create_polygon(bounding_box_list[-1][1:9], outline='red', fill='')
+
                     point_cnt = 0
                 else:
                     point_cnt += 1
