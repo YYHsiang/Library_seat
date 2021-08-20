@@ -24,6 +24,7 @@ bounding_box_list = []
 # 4 point clicking counter
 point_cnt = 0
 sole_polygon = None
+point_bounding_box_list = [] #temporally store bound for future use
 
 #x=YOLO()
 postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1","camera": "0"}
@@ -320,6 +321,9 @@ class Tool():
         else:
             print("--" + tool_name + " TOOL--")
             self.tool = tool_name
+            bounding_box_listbox.delete(0,'end')
+            canvas.delete(sole_polygon)
+            canvas.delete(sole_rectangle)
 
         if self.tool == "rect":
             #print("rectttt")
@@ -344,6 +348,7 @@ class Tool():
         elif tool.tool == "point":
             #print("pointtttt")
             bounding_box_list = []
+            point_cnt = 0
             # recreate button to dispaly DISABLE
             rect_select_btn = Button(select_tool_frame, text="Rect", state= NORMAL,
                                 command= lambda: self.change_tool("rect"), width=5)
@@ -468,8 +473,6 @@ def detect_img(yolo):
                     
     yolo.close_session()
 
-
- 
 def corp_img(source_path, save_path, x_begin, y_begin, x_end, y_end):
     if x_begin < x_end:
         min_x = x_begin
@@ -562,12 +565,12 @@ if __name__ == '__main__':
     undobutton.grid(row=5, column=0, columnspan=1)
 
     #create database button
-    db_button = Button(frame2, text="Database", command=database_window)
-    db_button.grid(row=5, column=1, columnspan=1)
+    db_button = Button(frame2, text="Database", command=database_window, width=15)
+    db_button.grid(row=6, column=0, columnspan=3,pady=(30,0))
 
     #proceed to YOLO
-    okbutton = Button(frame2, text='Next Step', command=ok_event, width=15)
-    okbutton.grid(row=6, column=0, columnspan=3,pady=20)
+    okbutton = Button(frame2, text='YOLO detect', command=ok_event, width=15)
+    okbutton.grid(row=7, column=0, columnspan=3,pady=10)
     #? ============ frame 2 ===========
 
     
