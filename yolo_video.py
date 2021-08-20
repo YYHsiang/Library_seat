@@ -11,12 +11,19 @@ import requests
 import cv2
 import sqlite3
 
+# store mouse position
 left_mouse_down_x = 0
 left_mouse_down_y = 0
 left_mouse_up_x = 0
 left_mouse_up_y = 0
 sole_rectangle = None
+
+# store all bounding box select by user
 bounding_box_list = []
+
+# 4 point clicking counter
+point_cnt = 0
+
 #x=YOLO()
 postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1","camera": "0"}
 
@@ -136,7 +143,6 @@ class DB_4point():
         self.conn.commit()
         self.conn.close()
 
-
 class database_window():
     def __init__(self):
         self.db_window=Toplevel()
@@ -199,6 +205,7 @@ class database_window():
                     for index in files:
                         if record[0] in index[0]:
                             ifnew =False
+                            pass
                         else:
                             ifnew =True
 
@@ -292,6 +299,134 @@ class database_window():
             db_win.delete(TABLE_NAME, file_name) 
             self.db_window.focus() 
 
+class Tool():
+    def __init__(self):
+        self.tool = "rect"
+
+        #? ============ select tool frame ===========
+        rect_select_btn = Button(select_tool_frame, text="Rect", command= lambda: self.change_tool("rect"), width=5)
+        rect_select_btn.grid(row=0, column=0,padx= 10,pady= 5)
+
+        point_select_btn = Button(select_tool_frame, text="Point", command= lambda: self.change_tool("point"), width=5)
+        point_select_btn.grid(row=0, column=1, padx=10)
+        #? ============ select tool frame ===========
+
+    def change_tool(self, tool_name:str):
+        global bounding_box_list
+
+        if tool_name is None:
+            messagebox.messagebox.showwarning("Wearning", "Please select tool")
+        else:
+            print("--" + tool_name + " TOOL--")
+            self.tool = tool_name
+
+        if self.tool == "rect":
+            #print("rectttt")
+            bounding_box_list = []
+
+            rect_select_btn = Button(select_tool_frame, text="Rect", state= DISABLED, 
+                                    command= lambda: self.change_tool("rect"), width=5)
+            rect_select_btn.grid(row=0, column=0,padx= 10,pady= 5)
+
+            point_select_btn = Button(select_tool_frame, text="Point", state= NORMAL, 
+                                    command= lambda: self.change_tool("point"), width=5)
+            point_select_btn.grid(row=0, column=1, padx=10)
+
+            canvas.unbind('<Button-1>')
+            canvas.unbind('<ButtonRelease-1>')
+            canvas.unbind('<B1-Motion>')
+            canvas.bind('<Button-1>', self.rect_left_mouse_down) # 鼠标左键按下
+            canvas.bind('<ButtonRelease-1>', self.rect_left_mouse_up) # 鼠标左键释放
+            canvas.bind('<B1-Motion>', self.rect_moving_mouse) # 鼠标左键按下并移动
+
+        elif tool.tool == "point":
+            #print("pointtttt")
+            bounding_box_list = []
+
+            rect_select_btn = Button(select_tool_frame, text="Rect", state= NORMAL,
+                                command= lambda: self.change_tool("rect"), width=5)
+            rect_select_btn.grid(row=0, column=0,padx= 10,pady= 5)
+
+            point_select_btn = Button(select_tool_frame, text="Point", state= DISABLED,
+                                command= lambda: self.change_tool("point"), width=5)
+            point_select_btn.grid(row=0, column=1, padx=10)
+
+            canvas.unbind('<Button-1>')
+            canvas.unbind('<ButtonRelease-1>')
+            canvas.unbind('<B1-Motion>')
+            canvas.bind('<Button-1>', self.point_mouse_down)
+
+    # TODO: 4 point selecting tool
+    def point_mouse_down(self, event):
+        print('--POINT MOUSE DOWN--')
+        global point_cnt
+        seat_name=seat_number_entry.get()
+
+        if seat_number_entry.get() == "" or floor_entry.get() == "" or camera_entry.get() == "":
+            messagebox.showerror("Error","Please Enter parameter")
+        else:
+            if point_cnt == 0:
+                bounding_box_list.append([])
+                bounding_box_list[(-1)].append(seat_number_entry.get())
+                bounding_box_list[(-1)].append((event.x, event.y))
+                point_cnt += 1
+
+            elif point_cnt < 4:
+                bounding_box_list[(-1)].append((event.x, event.y))
+
+                if point_cnt == 3:
+                    bounding_box_list[-1].append(0)
+                    bounding_box_list[-1].append(floor_entry.get())
+                    bounding_box_list[-1].append(camera_entry.get())
+                    # add seat name to bounding_box_listbox
+                    bounding_box_listbox.insert('end', seat_number_entry.get())
+                    #seat number + 1 automatically
+                    seat_number_entry.delete(0,'end')
+                    seat_number_entry.insert(0,str(int(seat_name)+ 1))
+                    point_cnt = 0
+                else:
+                    point_cnt += 1
+
+        print(bounding_box_list)
+
+
+    def rect_left_mouse_down(self, event):
+        print('--MOUSE DOWN--')
+        global left_mouse_down_x, left_mouse_down_y
+        left_mouse_down_x = event.x
+        left_mouse_down_y = event.y
+ 
+    def rect_left_mouse_up(self, event):
+        print('--MOUSE UP--')
+        global left_mouse_up_x, left_mouse_up_y, seat_name, seat_floor, camera_number
+
+        left_mouse_up_x = event.x
+        left_mouse_up_y = event.y
+        seat_name=seat_number_entry.get()
+        seat_floor=floor_entry.get()
+        camera_number=camera_entry.get()
+
+        if seat_number_entry.get() == "" or floor_entry.get() == "" or camera_entry.get() == "":
+            messagebox.showerror("Error","Please Enter parameter")
+        else:
+            bounding_box_listbox.insert('end', seat_name)
+            corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
+            left_mouse_up_x, left_mouse_up_y)
+
+        #seat number + 1 automatically
+        seat_number_entry.delete(0,'end')
+        seat_number_entry.insert(0,str(int(seat_name)+ 1))
+    
+    def rect_moving_mouse(self, event):
+        #print('鼠标左键按下并移动')
+        global sole_rectangle
+        global left_mouse_down_x, left_mouse_down_y
+        moving_mouse_x = event.x
+        moving_mouse_y = event.y
+        if sole_rectangle is not None:
+            canvas.delete(sole_rectangle) # 删除前一个矩形
+        sole_rectangle = canvas.create_rectangle(left_mouse_down_x, left_mouse_down_y, moving_mouse_x,
+                        moving_mouse_y, outline='red')
 
 def ok_event(): 
     win.destroy()
@@ -324,43 +459,7 @@ def detect_img(yolo):
                     
     yolo.close_session()
 
-def left_mouse_down(event):
-    print('--MOUSE DOWN--')
-    global left_mouse_down_x, left_mouse_down_y
-    left_mouse_down_x = event.x
-    left_mouse_down_y = event.y
- 
-def left_mouse_up(event):
-    print('--MOUSE UP--')
-    global left_mouse_up_x, left_mouse_up_y, seat_name, seat_floor, camera_number
 
-    left_mouse_up_x = event.x
-    left_mouse_up_y = event.y
-    seat_name=seat_number_entry.get()
-    seat_floor=floor_entry.get()
-    camera_number=camera_entry.get()
-
-    if seat_name == "" or seat_floor == "" or camera_number == "":
-        messagebox.showerror("Error","Please Enter parameter")
-    else:
-        bounding_box_listbox.insert('end', seat_name)
-        corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
-        left_mouse_up_x, left_mouse_up_y)
-
-    #seat number + 1 automatically
-    seat_number_entry.delete(0,'end')
-    seat_number_entry.insert(0,str(int(seat_name)+ 1))
- 
-def moving_mouse(event):
-    #print('鼠标左键按下并移动')
-    global sole_rectangle
-    global left_mouse_down_x, left_mouse_down_y
-    moving_mouse_x = event.x
-    moving_mouse_y = event.y
-    if sole_rectangle is not None:
-        canvas.delete(sole_rectangle) # 删除前一个矩形
-    sole_rectangle = canvas.create_rectangle(left_mouse_down_x, left_mouse_down_y, moving_mouse_x,
-                       moving_mouse_y, outline='red')
  
 def corp_img(source_path, save_path, x_begin, y_begin, x_end, y_end):
     if x_begin < x_end:
@@ -376,14 +475,14 @@ def corp_img(source_path, save_path, x_begin, y_begin, x_end, y_end):
         min_y = y_end
         max_y = y_begin
     bounding_box_list.append([])
-    bounding_box_list[(len(bounding_box_list)-1)].append(seat_name)
-    bounding_box_list[(len(bounding_box_list)-1)].append(min_x)
-    bounding_box_list[(len(bounding_box_list)-1)].append(min_y)
-    bounding_box_list[(len(bounding_box_list)-1)].append(max_x)
-    bounding_box_list[(len(bounding_box_list)-1)].append(max_y)
-    bounding_box_list[(len(bounding_box_list)-1)].append(0)
-    bounding_box_list[(len(bounding_box_list)-1)].append(seat_floor)
-    bounding_box_list[(len(bounding_box_list)-1)].append(camera_number)
+    bounding_box_list[-1].append(seat_name)
+    bounding_box_list[-1].append(min_x)
+    bounding_box_list[-1].append(min_y)
+    bounding_box_list[-1].append(max_x)
+    bounding_box_list[-1].append(max_y)
+    bounding_box_list[-1].append(0)
+    bounding_box_list[-1].append(seat_floor)
+    bounding_box_list[-1].append(camera_number)
     print(bounding_box_list)
 
 def undo_event():
@@ -407,12 +506,12 @@ if __name__ == '__main__':
     global var
 
     win = Tk()
-    db = DB_4point()
+    db = DB_4point() # data base
+    
 
     #Get the current screen width and height
     screen_width = win.winfo_screenwidth()
     screen_height = win.winfo_screenheight()
-
     win.geometry(str(screen_width) + 'x' + str(screen_height))
 
     #fix the missing cursor in text box bug. cause by filedialog.
@@ -422,42 +521,48 @@ if __name__ == '__main__':
     frame1.grid(row=0,column=0)
     frame2=Frame(win,bg='yellow',bd=20)
     frame2.grid(row=0,column=1)
+    select_tool_frame = LabelFrame(frame2, text="Select Tool")
+    select_tool_frame.grid(row=0, column=0, columnspan=1,pady=10)
 
+    #? ============ frame 2 ===========
     #Seat number label and Entry
     seat_number_label = Label(frame2,text = "Seat number")
-    seat_number_label.grid(column=0, row=0, ipadx=5, pady=5, sticky=W+N)
+    seat_number_label.grid(column=0, row=1, ipadx=5, pady=5, sticky=W+N)
     seat_number_entry = Entry(frame2)
-    seat_number_entry.grid(column=1, row=0, padx=10, pady=5, sticky=N)
-    
-    #Location label and Entry
-    floor_label = Label(frame2,text = "Floor")
-    floor_label.grid(column=0, row=2, ipadx=5, pady=5, sticky=W+N)
-    floor_entry = Entry(frame2)
-    floor_entry.grid(column=1, row=2, padx=10, pady=5, sticky=N)
-    
-    #Camera name label and Entry
-    camera_label = Label(frame2,text = "Camera")
-    camera_label.grid(column=0, row=3, ipadx=5, pady=5, sticky=W+N)
-    camera_entry = Entry(frame2)
-    camera_entry.grid(column=1, row=3, padx=10, pady=5, sticky=N)
+    seat_number_entry.grid(column=1, row=1, padx=10, pady=5, sticky=N)
 
     #bounding box list
     var = StringVar()
     bounding_box_listbox = Listbox(frame2, listvariable=var)
-    bounding_box_listbox.grid(column=1, row=1, padx=10, pady=5, sticky=N)
+    bounding_box_listbox.grid(column=1, row=2, padx=10, pady=5, sticky=N)
+    
+    #Location label and Entry
+    floor_label = Label(frame2,text = "Floor")
+    floor_label.grid(column=0, row=3, ipadx=5, pady=5, sticky=W+N)
+    floor_entry = Entry(frame2)
+    floor_entry.grid(column=1, row=3, padx=10, pady=5, sticky=N)
+    
+    #Camera name label and Entry
+    camera_label = Label(frame2,text = "Camera")
+    camera_label.grid(column=0, row=4, ipadx=5, pady=5, sticky=W+N)
+    camera_entry = Entry(frame2)
+    camera_entry.grid(column=1, row=4, padx=10, pady=5, sticky=N)
 
     # undo button to clear last bounding box
     undobutton = Button(frame2, text='Undo', command=undo_event, width=15)
-    undobutton.grid(row=4, column=0, columnspan=1)
+    undobutton.grid(row=5, column=0, columnspan=1)
 
     #create database button
     db_button = Button(frame2, text="Database", command=database_window)
-    db_button.grid(row=4, column=1, columnspan=1)
+    db_button.grid(row=5, column=1, columnspan=1)
 
     #proceed to YOLO
     okbutton = Button(frame2, text='Next Step', command=ok_event, width=15)
-    okbutton.grid(row=5, column=0, columnspan=3,pady=20)
+    okbutton.grid(row=6, column=0, columnspan=3,pady=20)
+    #? ============ frame 2 ===========
+
     
+
     #select a image to setup bounding box
     openSetupImage() 
     
@@ -467,9 +572,9 @@ if __name__ == '__main__':
     i = canvas.create_image(0, 0, anchor='nw', image=setup_img)
     canvas.pack()
 
-    canvas.bind('<Button-1>', left_mouse_down) # 鼠标左键按下
-    canvas.bind('<ButtonRelease-1>', left_mouse_up) # 鼠标左键释放
-    canvas.bind('<B1-Motion>', moving_mouse) # 鼠标左键按下并移动
+    # set tool to rect tool
+    tool = Tool() # Selecting tools
+    tool.change_tool("rect")
 
     win.mainloop()
     
