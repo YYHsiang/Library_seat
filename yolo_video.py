@@ -27,7 +27,8 @@ bounding_box_list = []
 
 # 4 point clicking counter
 point_cnt = 0
-sole_polygon = None
+seat_divide_cnt = 0
+sole_polygon = []
 point_bounding_box_list = [] #temporally store bound for future use
 sole_polygon_list = [] # for draw polygon
 
@@ -309,6 +310,8 @@ class database_window():
 class Tool():
     def __init__(self):
         self.tool = "rect"
+        self.side1 = [] #logn side 1
+        self.side2 = [] #logn side 2
 
         #? ============ select tool frame ===========
         rect_select_btn = Button(select_tool_frame, text="Rect", command= lambda: self.change_tool("rect"), width=5)
@@ -326,13 +329,18 @@ class Tool():
         else:
             print("--" + tool_name + " TOOL--")
             self.tool = tool_name
+
+            #clean all data
             bounding_box_listbox.delete(0,'end')
-            canvas.delete(sole_polygon)
-            canvas.delete(sole_rectangle)
+            clean_canvas()
 
         if self.tool == "rect":
             #print("rectttt")
-            bounding_box_list = []
+            bounding_box_list = [] 
+
+            # disable widget in divider_frame
+            for child in divider_frame.winfo_children():
+                child.configure(state='disable')
 
             # recreate button to dispaly DISABLE
             rect_select_btn = Button(select_tool_frame, text="Rect", state= DISABLED, 
@@ -354,6 +362,11 @@ class Tool():
             #print("pointtttt")
             bounding_box_list = []
             point_cnt = 0
+
+            # enable widget in divider_frame
+            for child in divider_frame.winfo_children():
+                child.configure(state='normal')
+
             # recreate button to dispaly DISABLE
             rect_select_btn = Button(select_tool_frame, text="Rect", state= NORMAL,
                                 command= lambda: self.change_tool("rect"), width=5)
@@ -370,13 +383,91 @@ class Tool():
 
     # TODO: divide selected aera
     def divide(self):
-        if divider_entry.get() == '' or len(point_bounding_box_list) != 4:
-            messagebox.showerror('Error', 'Wrong input value')
+        print("--DIVIDE--")
+        if divider_entry.get() == '':
+            messagebox.showerror('Error', 'Please input divider value')
+        elif len(point_bounding_box_list) != 4:
+            messagebox.showerror('Error', 'Bounding box error')
         else:
             #find long side
-            side1, side2 = self.divide_point()
-    
+            self.side1, self.side2 = self.divide_point()
+
+            
+            #clean_canvas
+            clean_canvas()
+            
+            # draw divided polygon
+            global sole_polygon
+            for cnt in range(len(self.side1) - 1):
+                sole_polygon.append(canvas.create_polygon(self.side1[cnt], self.side1[cnt+1], self.side2[cnt+1], self.side2[cnt], outline='green', fill=''))
+
+            global seat_divide_cnt
+            seat_divide_cnt = 0
+
+            # draw polygon to display current seat that needs to define seat_name...
+            sole_polygon.append(canvas.create_polygon(self.side1[seat_divide_cnt], self.side1[seat_divide_cnt+1], self.side2[seat_divide_cnt+1], self.side2[seat_divide_cnt],outline='yellow' , width= 5, fill=''))
+            
+
+    # TODO: devide aear into specific seats
+    def divide_seat(self):
+        print("--DIVIDE SEAT--")
+        print(self.side1)
+        global seat_divide_cnt, sole_polygon
+
+        if seat_number_entry.get() == "" or floor_entry.get() == "" or camera_entry.get() == "":
+            messagebox.showerror("Error","Please Enter parameter")
+        elif self.side1 == [] or self.side2 == []:
+            messagebox.showerror("Error","Bounding box error")
+        else:          
+            # if all divide seat was named
+            if seat_divide_cnt < int(divider_entry.get()) :
+                # add seat name to listbox
+                bounding_box_listbox.insert('end', seat_number_entry.get())
+
+                # append data to bounding box list
+                bounding_box_list.append([])
+                bounding_box_list[-1].append(seat_number_entry.get())
+                bounding_box_list[-1].append(self.side1[seat_divide_cnt][0])
+                bounding_box_list[-1].append(self.side1[seat_divide_cnt][1])
+                bounding_box_list[-1].append(self.side1[seat_divide_cnt+1][0])
+                bounding_box_list[-1].append(self.side1[seat_divide_cnt+1][1])
+                bounding_box_list[-1].append(self.side2[seat_divide_cnt+1][0])
+                bounding_box_list[-1].append(self.side2[seat_divide_cnt+1][1])
+                bounding_box_list[-1].append(self.side2[seat_divide_cnt][0])
+                bounding_box_list[-1].append(self.side2[seat_divide_cnt][1])
+                bounding_box_list[-1].append(floor_entry.get())
+                bounding_box_list[-1].append(camera_entry.get())
+
+                #seat number + 1 automatically
+                seat_name = seat_number_entry.get()
+                seat_number_entry.delete(0,'end')
+                seat_number_entry.insert(0,str(int(seat_name)+ 1))             
+            
+                #print(bounding_box_list)
+
+                seat_divide_cnt += 1
+
+                # draw polygon to display next seat that needs to define seat_name...
+                if seat_divide_cnt < int(divider_entry.get()) :
+                    if len(sole_polygon) > (int(divider_entry.get()) + 1):
+                        canvas.delete(sole_polygon[-1])
+                    sole_polygon.append(canvas.create_polygon(self.side1[seat_divide_cnt], self.side1[seat_divide_cnt+1], self.side2[seat_divide_cnt+1], self.side2[seat_divide_cnt],outline='yellow' , width= 5, fill=''))
+                
+                # all seat value input is complete
+                else:
+                    global point_bounding_box_list
+                    seat_divide_cnt = 0
+                    point_bounding_box_list = []
+                    # clean canvas
+                    clean_canvas()
+
+                    # clean side1 side2
+                    self.side1 = []
+                    self.side1 = [] 
+            #print("Seat cnt: " + str(seat_divide_cnt))
+        
     def divide_point(self):
+        print("--DIVIDE POINT--")
         '''
         return two list which contain the divided point in each long side.
         FULL LIST 1: [(280, 304), [539.0, 247.5], (798, 191)]
@@ -400,6 +491,13 @@ class Tool():
         long_side1_dist = math.hypot(long_side1[0][0] - long_side1[1][0], long_side1[0][1] - long_side1[1][1])
         long_side2_dist = math.hypot(long_side2[0][0] - long_side2[1][0], long_side2[0][1] - long_side2[1][1])
 
+        # find image correction ratio
+        # correction_ratio = (short side1)/ (short side2)
+        correction_ratio = math.hypot(long_side1[0][0] - long_side2[0][0], long_side1[0][1] - long_side2[0][1]) / math.hypot(long_side1[1][0] - long_side2[1][0], long_side1[1][1] - long_side2[1][1])
+        CORRECTION_RATIO_OFFSET = float(image_cor_entry.get())
+        correction_ratio = correction_ratio * CORRECTION_RATIO_OFFSET
+        #print("correction RATIO: " + str(correction_ratio))
+
         #find distant in each segment
         long_side1_seg_dist = long_side1_dist / segment
         long_side2_seg_dist = long_side2_dist / segment
@@ -420,16 +518,16 @@ class Tool():
         long_side2_div_pt = []
 
         for point in range(1,segment):
-            long_side1_div_pt.append([(long_side1[0][0] + point * long_side1_seg_dist * long_side1_x_ratio), (long_side1[0][1] + point * long_side1_seg_dist * long_side1_y_ratio)])
-            long_side2_div_pt.append([(long_side2[0][0] + point * long_side2_seg_dist * long_side2_x_ratio), (long_side2[0][1] + point * long_side2_seg_dist * long_side2_y_ratio)])
+            long_side1_div_pt.append([(long_side1[0][0] + point * long_side1_seg_dist * long_side1_x_ratio * correction_ratio), (long_side1[0][1] + point * long_side1_seg_dist * long_side1_y_ratio * correction_ratio)])
+            long_side2_div_pt.append([(long_side2[0][0] + point * long_side2_seg_dist * long_side2_x_ratio * correction_ratio), (long_side2[0][1] + point * long_side2_seg_dist * long_side2_y_ratio * correction_ratio)])
         #print("DIVIDE point: " + str(long_side1_div_pt))
 
         # insert divide point to original long side list
         for div_pt in range(len(long_side1_div_pt)):
             long_side1.insert(1 + div_pt ,long_side1_div_pt[div_pt])
             long_side2.insert(1 + div_pt ,long_side2_div_pt[div_pt])
-        print("FULL LIST 1: " + str(long_side1))
-        print("FULL LIST 2: " + str(long_side2))
+        #print("FULL LIST 1: " + str(long_side1))
+        #print("FULL LIST 2: " + str(long_side2))
 
         return long_side1, long_side2
 
@@ -457,49 +555,13 @@ class Tool():
 
             if point_cnt == 3:
                 if sole_polygon is not None:
-                    canvas.delete(sole_polygon) # 删除前一个矩形
-                sole_polygon = canvas.create_polygon(sole_polygon_list, outline='red', fill='')
+                    clean_canvas()
+                sole_polygon.append(canvas.create_polygon(sole_polygon_list, outline='red', fill=''))
 
                 point_cnt = 0
             else:
                 point_cnt += 1
-        print(point_bounding_box_list)
-
-        '''
-        if seat_number_entry.get() == "" or floor_entry.get() == "" or camera_entry.get() == "":
-            messagebox.showerror("Error","Please Enter parameter")
-        else:
-            if point_cnt == 0:
-                bounding_box_list.append([])
-                bounding_box_list[(-1)].append(seat_number_entry.get())
-                bounding_box_list[(-1)].append(event.x)
-                bounding_box_list[(-1)].append(event.y)
-                point_cnt += 1
-
-            elif point_cnt < 4:
-                bounding_box_list[(-1)].append(event.x)
-                bounding_box_list[(-1)].append(event.y)
-
-                if point_cnt == 3:
-                    bounding_box_list[-1].append(0)
-                    bounding_box_list[-1].append(floor_entry.get())
-                    bounding_box_list[-1].append(camera_entry.get())
-                    # add seat name to bounding_box_listbox
-                    bounding_box_listbox.insert('end', seat_number_entry.get())
-                    #seat number + 1 automatically
-                    seat_number_entry.delete(0,'end')
-                    seat_number_entry.insert(0,str(int(seat_name)+ 1))
-
-                    if sole_polygon is not None:
-                        canvas.delete(sole_polygon) # 删除前一个矩形
-                    sole_polygon = canvas.create_polygon(bounding_box_list[-1][1:9], outline='red', fill='')
-
-                    point_cnt = 0
-                else:
-                    point_cnt += 1
-
-        print(bounding_box_list)
-        '''
+        #print(point_bounding_box_list)
 
 
     def rect_left_mouse_down(self, event):
@@ -521,13 +583,15 @@ class Tool():
         if seat_number_entry.get() == "" or floor_entry.get() == "" or camera_entry.get() == "":
             messagebox.showerror("Error","Please Enter parameter")
         else:
+            # add seat name to listbox
             bounding_box_listbox.insert('end', seat_name)
+            # store image coordinate
             corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
             left_mouse_up_x, left_mouse_up_y)
 
-        #seat number + 1 automatically
-        seat_number_entry.delete(0,'end')
-        seat_number_entry.insert(0,str(int(seat_name)+ 1))
+            #seat number + 1 automatically
+            seat_number_entry.delete(0,'end')
+            seat_number_entry.insert(0,str(int(seat_name)+ 1))
     
     def rect_moving_mouse(self, event):
         #print('鼠标左键按下并移动')
@@ -536,9 +600,15 @@ class Tool():
         moving_mouse_x = event.x
         moving_mouse_y = event.y
         if sole_rectangle is not None:
-            canvas.delete(sole_rectangle) # 删除前一个矩形
+            clean_canvas() # 删除前一个矩形
         sole_rectangle = canvas.create_rectangle(left_mouse_down_x, left_mouse_down_y, moving_mouse_x,
                         moving_mouse_y, outline='red')
+
+def clean_canvas():
+    if sole_polygon is not None:
+        for polygon in sole_polygon:
+            canvas.delete(polygon)
+    canvas.delete(sole_rectangle)
 
 def ok_event(): 
     win.destroy()
@@ -608,7 +678,7 @@ def openSetupImage(): #select an image to setup bounding box
     #img_path = filedialog.askopenfilename(initialdir="/", title="open an image", filetypes= ( ("all files", "*.*"), ("jpg files", "*.jpg") ))
     img_path = "test_image/seat_angle1_ref.jpg"
     image = Image.open(img_path)
-    setup_image=image.resize((1200, 600))
+    setup_image=image.resize((1200, 675))
     setup_img = ImageTk.PhotoImage(setup_image)
 
 if __name__ == '__main__':
@@ -627,6 +697,7 @@ if __name__ == '__main__':
     #fix the missing cursor in text box bug. cause by filedialog.
     win.update_idletasks()
 
+    #? ====== Frame ======
     frame1 =Frame(win,bg='red',bd=10)
     frame1.grid(row=0,column=0)
     frame2=Frame(win,bg='yellow',bd=20)
@@ -638,46 +709,62 @@ if __name__ == '__main__':
     divider_frame = LabelFrame(frame2, text="Divider")
     divider_frame.grid(row=1, column=0, columnspan=2, pady=10, sticky='W')
 
+    entry_frame = LabelFrame(frame2)
+    entry_frame.grid(row=3, column=0, columnspan=2, pady=10, sticky='W')
+    #? ====== Frame ======
+
     # set tool to rect tool
     tool = Tool() # Selecting tools
-    
+
+    #? ============ frame 2 ===========
+
     #? ============ divider frame ===========
     divider_label = Label(divider_frame, text= 'divide into:')
     divider_label.grid(row=0, column=0, pady= 5)
     divider_entry = Entry(divider_frame)
     divider_entry.grid(row=0, column=1)
     divider_entry.insert(0,"1")
-    divider_btn = Button(divider_frame, text="Done", command= tool.divide)
-    divider_btn.grid(row=0, column=2, padx=5)
+    divider_btn = Button(divider_frame, text="Done", command= tool.divide, height=5)
+    divider_btn.grid(row=0, column=2, padx=5, rowspan=2)
+
+    image_cor_label = Label(divider_frame, text="Image \nCorrection:\n Offset")
+    image_cor_label.grid(row=1, column=0, pady= 5,padx=5)
+    image_cor_entry = Entry(divider_frame)
+    image_cor_entry.grid(row=1, column=1)
+    image_cor_entry.insert(0,"1.15")
     #? ============ divider frame ===========
 
-    #? ============ frame 2 ===========
+    #? ============ entry frame ===========
     #Seat number label and Entry
-    seat_number_label = Label(frame2,text = "Seat number")
+    seat_number_label = Label(entry_frame,text = "Seat number")
     seat_number_label.grid(column=0, row=2, ipadx=5, pady=5, sticky=W+N)
-    seat_number_entry = Entry(frame2)
+    seat_number_entry = Entry(entry_frame)
     seat_number_entry.grid(column=1, row=2, padx=10, pady=5, sticky=N)
 
     #bounding box list
     var = StringVar()
-    bounding_box_listbox = Listbox(frame2, listvariable=var)
+    bounding_box_listbox = Listbox(entry_frame, listvariable=var)
     bounding_box_listbox.grid(column=1, row=3, padx=10, pady=5, sticky=N)
     
     #Location label and Entry
-    floor_label = Label(frame2,text = "Floor")
+    floor_label = Label(entry_frame,text = "Floor")
     floor_label.grid(column=0, row=4, ipadx=5, pady=5, sticky=W+N)
-    floor_entry = Entry(frame2)
+    floor_entry = Entry(entry_frame)
     floor_entry.grid(column=1, row=4, padx=10, pady=5, sticky=N)
     
     #Camera name label and Entry
-    camera_label = Label(frame2,text = "Camera")
+    camera_label = Label(entry_frame,text = "Camera")
     camera_label.grid(column=0, row=5, ipadx=5, pady=5, sticky=W+N)
-    camera_entry = Entry(frame2)
+    camera_entry = Entry(entry_frame)
     camera_entry.grid(column=1, row=5, padx=10, pady=5, sticky=N)
+
+    next_seat_btn = Button(entry_frame, text="Next", width=10, command=tool.divide_seat)
+    next_seat_btn.grid(column=0, row=6, padx=10, pady=5, columnspan=3, sticky='E')
+    #? ============ entry frame ===========
 
     # undo button to clear last bounding box
     undobutton = Button(frame2, text='Undo', command=undo_event, width=15)
-    undobutton.grid(row=6, column=0, columnspan=1)
+    undobutton.grid(row=6, column=0, columnspan=3)
 
     #create database button
     db_button = Button(frame2, text="Database", command=database_window, width=15)
