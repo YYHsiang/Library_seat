@@ -21,7 +21,7 @@ sole_rectangle = None
 
 # store all bounding box select by user
 '''
-bounding_box_list = ["seat_name", point1, point2, point3, point4, 0, "location", "camera_name"]
+bounding_box_list = ["file_type", "seat_name", point1, point2, point3, point4, "location", "camera_name"]
 '''
 bounding_box_list = []
 
@@ -38,6 +38,12 @@ postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1","camera": "0"}
 #database path
 DATABASE_PATH = "database/bounding_box.db"
 TABLE_NAME = "seats_4point"
+TABLE_XY_NAME = "seats_4point_xy"
+
+#file types
+file_types = [
+    "seat", "table"
+]
 
 class DB_4point():
     def __init__(self):
@@ -151,6 +157,97 @@ class DB_4point():
         self.conn.commit()
         self.conn.close()
 
+class DB_4point_xy():
+    def __init__(self):
+        # create a database or connect one
+        self.conn = sqlite3.connect(DATABASE_PATH)
+        #create a cursor
+        self.c = self.conn.cursor()
+
+        # create a table
+        '''
+        self.c.execute("""CREATE TABLE seats_4point_xy(
+            file_name text,
+            file_type text,
+            seat_name text,
+            point1_x integer,
+            point1_y integer,
+            point2_x integer,
+            point2_y integer,
+            point3_x integer,
+            point3_y integer,
+            point4_x integer,
+            point4_y integer,
+            location text,
+            camera_name text
+            )""")
+        '''
+        # commit changes
+        self.conn.commit()
+        # close connection
+        self.conn.close()
+
+    def select(self, table_name:str, file_name:str):
+        self.conn = sqlite3.connect(DATABASE_PATH)
+        self.c = self.conn.cursor()
+
+        self.c.execute("SELECT * FROM " + table_name + " WHERE file_name = '" + file_name + "'")
+        records = self.c.fetchall()
+        print(records)
+
+        self.conn.commit()
+        self.conn.close()
+
+        return records
+    
+    # add new file to database
+    def insert(self, table_name:str, file_name:str, file_type:str, seat_name:str, pt1:list, pt2:list, pt3:list, pt4:list, location:str, camera_name:str):
+        self.conn = sqlite3.connect(DATABASE_PATH)
+        self.c = self.conn.cursor()
+        #Insert into table
+        self.c.execute("INSERT INTO "+ table_name +" VALUES (:file_name, :file_type,:seat_name, :point1_x, :point1_y, :point2_x, :point2_y, :point3_x, :point3_y, :point4_x, :point4_y, :location, :camera_name)",
+                {
+                    'file_name': file_name,
+                    'file_type': file_type,
+                    'seat_name': seat_name,
+                    'point1_x':pt1[0],
+                    'point1_y':pt1[1],
+                    'point2_x':pt2[0],
+                    'point2_y':pt2[1],
+                    'point3_x':pt3[0],
+                    'point3_y':pt3[1],
+                    'point4_x':pt4[0],
+                    'point4_y':pt4[1],
+                    'location': location,
+                    'camera_name': camera_name
+                })
+
+        self.conn.commit()
+        self.conn.close()
+
+    def query(self, table_name:str):
+        self.conn = sqlite3.connect(DATABASE_PATH)
+        self.c = self.conn.cursor()
+
+        self.c.execute("SELECT * FROM " + table_name)
+        records = self.c.fetchall()
+        print(records)
+
+        self.conn.commit()
+        self.conn.close()
+
+        return records
+
+    #delete using file_name
+    def delete(self, table_name:str, file_name:str):
+        self.conn = sqlite3.connect(DATABASE_PATH)
+        c = self.conn.cursor()
+
+        c.execute("DELETE from "+ table_name +" WHERE file_name = '" + file_name + "'")
+
+        self.conn.commit()
+        self.conn.close()
+
 class database_window():
     def __init__(self):
         self.db_window=Toplevel()
@@ -189,12 +286,13 @@ class database_window():
     # show all files in db
     def show_query(self):
         print("--SHOW QUERY--")
-        db_win = DB_4point()
-        db_win_records = db_win.query(TABLE_NAME)
+        #db_win = DB_4point() #original table
+        db_win = DB_4point_xy() #2nd table
+        db_win_records = db_win.query(TABLE_XY_NAME)
 
         files = []
         '''
-        2d array=[[file_name, seat_cnt, location, camera_name], [...],...]
+        2d array=[[file_name, file_type, seat_cnt, location, camera_name], [...],...]
         '''
         if db_win_records is None:
             messagebox.showerror("No data", "Database is Empty!")
@@ -203,10 +301,11 @@ class database_window():
                 # collect all file name, assume SAME file_name with SAME location and camera_name
                 if files == []:
                     files.append([])
-                    files[0].append(record[0])
+                    files[0].append(record[0]) #file name
+                    files[0].append(record[1]) #file type
                     files[0].append(1) #count seats with same file name
-                    files[0].append(record[6]) #location
-                    files[0].append(record[7]) #camera_name
+                    files[0].append(record[11]) #location
+                    files[0].append(record[12]) #camera_name
                 else:
                     #check for duplicate
                     ifnew = 0
@@ -220,80 +319,89 @@ class database_window():
                     #if file name in record already exist in file, add seat cnt.
                     if ifnew:
                         files.append([])
-                        files[-1].append(record[0])
+                        files[-1].append(record[0]) #file name
+                        files[-1].append(record[1]) #file type
                         files[-1].append(1) #count seats with same file name
-                        files[-1].append(record[6]) #location
-                        files[-1].append(record[7]) #camera_name
+                        files[-1].append(record[11]) #location
+                        files[-1].append(record[12]) #camera_name
 
                     #if file name in record doesnt exist in file, then add one.
                     else:
                         i = files.index(index)
-                        files[i][1] +=1 
+                        files[i][2] +=1 
                     
-        print(files)
-        f_name, seat_num, locat, cam_n = '','','',''
+        #print(files)
+
+        f_name, f_type, seat_num, locat, cam_n = '','','','',''
         for file in files:
             f_name += str(file[0]) +'\n'
-            seat_num += str(file[1]) +'\n'
-            locat += str(file[2]) +'\n'
-            cam_n += str(file[3]) +'\n'
+            f_type += str(file[1]) +'\n'
+            seat_num += str(file[2]) +'\n'
+            locat += str(file[3]) +'\n'
+            cam_n += str(file[4]) +'\n'
 
         # label for query data
         label_f_n_file = Label(self.file_list, text=f_name).grid(row=1, column= 0, pady=5, padx= 2)
-        label_s_n_file = Label(self.file_list, text=seat_num).grid(row=1, column= 1, pady=5, padx= 2)
-        label_loca_file = Label(self.file_list, text=locat).grid(row=1, column= 2, pady=5, padx= 2)
-        label_cam_file = Label(self.file_list, text=cam_n).grid(row=1, column= 3, pady=5, padx= 2)
+        label_f_t_file = Label(self.file_list, text=f_type).grid(row=1, column= 1, pady=5, padx= 2)
+        label_s_n_file = Label(self.file_list, text=seat_num).grid(row=1, column= 2, pady=5, padx= 2)
+        label_loca_file = Label(self.file_list, text=locat).grid(row=1, column= 3, pady=5, padx= 2)
+        label_cam_file = Label(self.file_list, text=cam_n).grid(row=1, column= 4, pady=5, padx= 2)
 
         # label for query title        
         label_f_n = Label(self.file_list, text="File name").grid(row=0, column= 0, pady=5, padx= 2)
-        label_s_n = Label(self.file_list, text="Seat #").grid(row=0, column= 1, pady=5, padx= 2)
-        label_loca = Label(self.file_list, text="Location").grid(row=0, column= 2, pady=5, padx= 2)
-        label_cam = Label(self.file_list, text="Cam name").grid(row=0, column= 3, pady=5, padx= 2)
+        label_f_t = Label(self.file_list, text="File type").grid(row=0, column= 1, pady=5, padx= 2)
+        label_s_n = Label(self.file_list, text="Seat #").grid(row=0, column= 2, pady=5, padx= 2)
+        label_loca = Label(self.file_list, text="Location").grid(row=0, column= 3, pady=5, padx= 2)
+        label_cam = Label(self.file_list, text="Cam name").grid(row=0, column= 4, pady=5, padx= 2)
 
 
     #add bounding_box_list to database
     def add_new(self, file_name):
         print("--ADD NEW--")
-        db_win = DB_4point()
+        db_win = DB_4point_xy()
 
         if bounding_box_list == []:
             messagebox.showerror(title="No data!",message="No bounding box") 
             self.db_window.focus()  
         else:
             for box in bounding_box_list:
-                db_win.insert(TABLE_NAME, file_name, box[0], box[1], box[2], box[3], box[4], box[6], box[7])
+                # bounding_box_list = ["file_type", "seat_name", point1, point2, point3, point4, "location", "camera_name"]
+                db_win.insert(TABLE_XY_NAME, file_name, box[0], box[1], box[2], box[3], box[4], box[5],box[6],box[7])
 
     #load the data in database to bounding_box_list
     def load(self, file_name):
         print("--LOAD--")
         db_win = DB_4point()
         
-        records = db_win.select(TABLE_NAME, file_name)
+        records = db_win.select(TABLE_XY_NAME, file_name)
         bounding_box_listbox.delete(0,'end')
 
         global bounding_box_list
         bounding_box_list = []
         for record in records:
             #set entry to previous value
-            bounding_box_listbox.insert('end', record[1])
+            bounding_box_listbox.insert('end', record[2]) #insert seat name to listbox
 
+            # bounding_box_list = ["file_type", "seat_name", point1, point2, point3, point4, "location", "camera_name"]
             bounding_box_list.append([])
-            bounding_box_list[(len(bounding_box_list)-1)].append(record[1])
-            bounding_box_list[(len(bounding_box_list)-1)].append(record[2])
-            bounding_box_list[(len(bounding_box_list)-1)].append(record[3])
-            bounding_box_list[(len(bounding_box_list)-1)].append(record[4])
-            bounding_box_list[(len(bounding_box_list)-1)].append(record[5])
-            bounding_box_list[(len(bounding_box_list)-1)].append(0)
-            bounding_box_list[(len(bounding_box_list)-1)].append(record[6])
-            bounding_box_list[(len(bounding_box_list)-1)].append(record[7])
+            bounding_box_list[(len(bounding_box_list)-1)].append(record[1]) #file type
+            bounding_box_list[(len(bounding_box_list)-1)].append(record[2]) #seat name
+            bounding_box_list[(len(bounding_box_list)-1)].append((record[3],record[4])) #pt1
+            bounding_box_list[(len(bounding_box_list)-1)].append((record[5],record[6])) #pt2
+            bounding_box_list[(len(bounding_box_list)-1)].append((record[7],record[8])) #pt1
+            bounding_box_list[(len(bounding_box_list)-1)].append((record[9],record[10])) #pt2
+            bounding_box_list[(len(bounding_box_list)-1)].append(record[11]) #location
+            bounding_box_list[(len(bounding_box_list)-1)].append(record[12]) #camera name
 
         #print(bounding_box_list)
+
+        # set default value in Entry
         seat_number_entry.delete(0,'end')
-        seat_number_entry.insert(0, str(int(record[1]) + 1))
+        seat_number_entry.insert(0, str(int(record[2]) + 1))
         floor_entry.delete(0,'end')
-        floor_entry.insert(0, str(record[6]))
+        floor_entry.insert(0, str(record[11]))
         camera_entry.delete(0,'end')
-        camera_entry.insert(0, str(record[7]))
+        camera_entry.insert(0, str(record[12]))
         self.db_window.destroy()
         win.focus()
 
@@ -304,7 +412,7 @@ class database_window():
 
         response = messagebox.askyesno(title="Delete", message="Delete the file?")
         if response == 1:
-            db_win.delete(TABLE_NAME, file_name) 
+            db_win.delete(TABLE_XY_NAME, file_name) 
             self.db_window.focus() 
 
 class Tool():
@@ -411,7 +519,6 @@ class Tool():
     # TODO: devide aear into specific seats
     def divide_seat(self):
         print("--DIVIDE SEAT--")
-        print(self.side1)
         global seat_divide_cnt, sole_polygon
 
         if seat_number_entry.get() == "" or floor_entry.get() == "" or camera_entry.get() == "":
@@ -426,15 +533,12 @@ class Tool():
 
                 # append data to bounding box list
                 bounding_box_list.append([])
-                bounding_box_list[-1].append(seat_number_entry.get())
-                bounding_box_list[-1].append(self.side1[seat_divide_cnt][0])
-                bounding_box_list[-1].append(self.side1[seat_divide_cnt][1])
-                bounding_box_list[-1].append(self.side1[seat_divide_cnt+1][0])
-                bounding_box_list[-1].append(self.side1[seat_divide_cnt+1][1])
-                bounding_box_list[-1].append(self.side2[seat_divide_cnt+1][0])
-                bounding_box_list[-1].append(self.side2[seat_divide_cnt+1][1])
-                bounding_box_list[-1].append(self.side2[seat_divide_cnt][0])
-                bounding_box_list[-1].append(self.side2[seat_divide_cnt][1])
+                bounding_box_list[-1].append(file_type_data.get()) #file name
+                bounding_box_list[-1].append(seat_number_entry.get()) #seat number
+                bounding_box_list[-1].append((self.side1[seat_divide_cnt][0],self.side1[seat_divide_cnt][1])) #point1 coordinate
+                bounding_box_list[-1].append((self.side1[seat_divide_cnt+1][0],self.side1[seat_divide_cnt+1][1]))
+                bounding_box_list[-1].append((self.side2[seat_divide_cnt+1][0],self.side2[seat_divide_cnt+1][1]))
+                bounding_box_list[-1].append((self.side2[seat_divide_cnt][0],self.side2[seat_divide_cnt][1]))
                 bounding_box_list[-1].append(floor_entry.get())
                 bounding_box_list[-1].append(camera_entry.get())
 
@@ -443,7 +547,7 @@ class Tool():
                 seat_number_entry.delete(0,'end')
                 seat_number_entry.insert(0,str(int(seat_name)+ 1))             
             
-                #print(bounding_box_list)
+                print(bounding_box_list)
 
                 seat_divide_cnt += 1
 
@@ -614,6 +718,7 @@ def ok_event():
     win.destroy()
     #detect_img(x)
 
+#! need new crop function!!!!!!!!
 def detect_img(yolo):
     video_path = "seat_video1.mp4"
     capture = cv2.VideoCapture(video_path)
@@ -655,12 +760,12 @@ def corp_img(source_path, save_path, x_begin, y_begin, x_end, y_end):
         min_y = y_end
         max_y = y_begin
     bounding_box_list.append([])
+    bounding_box_list[-1].append(file_type_data.get()) #file type
     bounding_box_list[-1].append(seat_name)
-    bounding_box_list[-1].append(min_x)
-    bounding_box_list[-1].append(min_y)
-    bounding_box_list[-1].append(max_x)
-    bounding_box_list[-1].append(max_y)
-    bounding_box_list[-1].append(0)
+    bounding_box_list[-1].append((min_x,min_y))
+    bounding_box_list[-1].append((min_x,max_y))
+    bounding_box_list[-1].append((max_x,max_y))
+    bounding_box_list[-1].append((max_x,min_y))
     bounding_box_list[-1].append(seat_floor)
     bounding_box_list[-1].append(camera_number)
     print(bounding_box_list)
@@ -687,6 +792,7 @@ if __name__ == '__main__':
 
     win = Tk()
     db = DB_4point() # data base
+    db_xy = DB_4point_xy()
     
 
     #Get the current screen width and height
@@ -735,6 +841,12 @@ if __name__ == '__main__':
     #? ============ divider frame ===========
 
     #? ============ entry frame ===========
+    # Option for file types
+    file_type_data = StringVar()
+    file_type_data.set(file_types[0])
+    file_type_drop = OptionMenu(entry_frame, file_type_data, *file_types)
+    file_type_drop.grid(column=0, row=0, ipadx=5, pady=5, sticky=W+N)
+
     #Seat number label and Entry
     seat_number_label = Label(entry_frame,text = "Seat number")
     seat_number_label.grid(column=0, row=2, ipadx=5, pady=5, sticky=W+N)
