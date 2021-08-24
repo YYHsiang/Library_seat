@@ -25,6 +25,9 @@ bounding_box_list = ["file_type", "seat_name", point1, point2, point3, point4, "
 '''
 bounding_box_list = []
 
+#store text when display all bounding box
+bounding_box_text = []
+
 # 4 point clicking counter
 point_cnt = 0
 seat_divide_cnt = 0
@@ -252,14 +255,14 @@ class database_window():
     def __init__(self):
         self.db_window=Toplevel()
         self.db_window.title("Database")
-        self.db_window.geometry("420x400")
+        self.db_window.geometry("500x400")
 
         self.file_list= LabelFrame(self.db_window, text="Files")
         self.file_list.grid(row=1, column= 1, padx=(0,10), pady=10)
 
         #show data in database
         show_query_btn = Button(self.db_window, text="show query", command=self.show_query)
-        show_query_btn.grid(row=0,column= 0, pady=10)
+        show_query_btn.grid(row=0,column= 0, pady=10, )
 
         #show query
         self.show_query()
@@ -272,11 +275,11 @@ class database_window():
 
         #add new data in database
         add_new_btn = Button(self.db_window, text="Add new Data", command=lambda: self.add_new(file_name_box.get()))
-        add_new_btn.grid(row=3, column=0)
+        add_new_btn.grid(row=3, column=0, padx=5)
 
         #load data in database
-        delete_btn = Button(self.db_window, text="Load", width=25 , command=lambda: self.load(file_name_box.get()))
-        delete_btn.grid(row=3, column=1)
+        load_btn = Button(self.db_window, text="Load", width=25 , command=lambda: self.load(file_name_box.get()))
+        load_btn.grid(row=3, column=1)
 
         #delete data in database
         delete_btn = Button(self.db_window, text="Delete Data", command=lambda: self.delete_file(file_name_box.get()))
@@ -440,7 +443,7 @@ class Tool():
 
             #clean all data
             bounding_box_listbox.delete(0,'end')
-            clean_canvas()
+            self.clean_canvas()
 
         if self.tool == "rect":
             #print("rectttt")
@@ -500,21 +503,21 @@ class Tool():
             #find long side
             self.side1, self.side2 = self.divide_point()
 
-            
             #clean_canvas
-            clean_canvas()
+            self.clean_canvas()
             
             # draw divided polygon
             global sole_polygon
             for cnt in range(len(self.side1) - 1):
                 sole_polygon.append(canvas.create_polygon(self.side1[cnt], self.side1[cnt+1], self.side2[cnt+1], self.side2[cnt], outline='green', fill=''))
 
+            print(len(sole_polygon))
             global seat_divide_cnt
             seat_divide_cnt = 0
 
             # draw polygon to display current seat that needs to define seat_name...
             sole_polygon.append(canvas.create_polygon(self.side1[seat_divide_cnt], self.side1[seat_divide_cnt+1], self.side2[seat_divide_cnt+1], self.side2[seat_divide_cnt],outline='yellow' , width= 5, fill=''))
-            
+            print(len(sole_polygon))
 
     # TODO: devide aear into specific seats
     def divide_seat(self):
@@ -553,17 +556,17 @@ class Tool():
 
                 # draw polygon to display next seat that needs to define seat_name...
                 if seat_divide_cnt < int(divider_entry.get()) :
-                    if len(sole_polygon) > (int(divider_entry.get()) + 1):
+                    if len(sole_polygon) > (int(divider_entry.get())):
                         canvas.delete(sole_polygon[-1])
                     sole_polygon.append(canvas.create_polygon(self.side1[seat_divide_cnt], self.side1[seat_divide_cnt+1], self.side2[seat_divide_cnt+1], self.side2[seat_divide_cnt],outline='yellow' , width= 5, fill=''))
-                
+                    print(len(sole_polygon))
                 # all seat value input is complete
                 else:
                     global point_bounding_box_list
                     seat_divide_cnt = 0
                     point_bounding_box_list = []
                     # clean canvas
-                    clean_canvas()
+                    self.clean_canvas()
 
                     # clean side1 side2
                     self.side1 = []
@@ -659,9 +662,9 @@ class Tool():
 
             if point_cnt == 3:
                 if sole_polygon is not None:
-                    clean_canvas()
+                    self.clean_canvas()
                 sole_polygon.append(canvas.create_polygon(sole_polygon_list, outline='red', fill=''))
-
+                print(len(sole_polygon))
                 point_cnt = 0
             else:
                 point_cnt += 1
@@ -704,15 +707,38 @@ class Tool():
         moving_mouse_x = event.x
         moving_mouse_y = event.y
         if sole_rectangle is not None:
-            clean_canvas() # 删除前一个矩形
+            self.clean_canvas() # 删除前一个矩形
         sole_rectangle = canvas.create_rectangle(left_mouse_down_x, left_mouse_down_y, moving_mouse_x,
                         moving_mouse_y, outline='red')
 
-def clean_canvas():
-    if sole_polygon is not None:
+    #display all bounding box on canvas
+    def display_all(self):
+        global bounding_box_text
+        #detect if bounding box already display on canvas
+        if sole_polygon == []:
+            for box in bounding_box_list:
+                sole_polygon.append(canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='red', fill=''))
+                #display text for bounding box
+                bounding_box_text.append(canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'blue', anchor="nw", font=("Helvetica", 15)))
+                bounding_box_text.append(canvas.create_rectangle(canvas.bbox(bounding_box_text[-1]),fill="white"))
+                #move rectangle under the text
+                canvas.tag_lower(bounding_box_text[-1],bounding_box_text[-2])            
+        else:
+            self.clean_canvas()
+            
+
+    def clean_canvas(self):
+        global sole_polygon, sole_rectangle, bounding_box_text
         for polygon in sole_polygon:
             canvas.delete(polygon)
-    canvas.delete(sole_rectangle)
+        sole_polygon = []
+
+        for text in bounding_box_text:
+            canvas.delete(text)
+        bounding_box_text = []
+
+        canvas.delete(sole_rectangle)
+        sole_rectangle =[]
 
 def ok_event(): 
     win.destroy()
@@ -844,8 +870,14 @@ if __name__ == '__main__':
     # Option for file types
     file_type_data = StringVar()
     file_type_data.set(file_types[0])
+    file_type_label = Label(entry_frame, text="File Type:")
+    file_type_label.grid(row=0, column=0,ipadx=5)
     file_type_drop = OptionMenu(entry_frame, file_type_data, *file_types)
-    file_type_drop.grid(column=0, row=0, ipadx=5, pady=5, sticky=W+N)
+    file_type_drop.grid(column=1, row=0, ipadx=5, pady=5, sticky=W+N)
+
+    #display all bounding box
+    display_all_btn = Button(entry_frame, text="Show All", command=tool.display_all)
+    display_all_btn.grid(column=1, row=0, ipadx=5, pady=5, sticky=E)
 
     #Seat number label and Entry
     seat_number_label = Label(entry_frame,text = "Seat number")
