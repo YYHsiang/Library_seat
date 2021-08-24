@@ -6,6 +6,7 @@ import math
 import os
 from tkinter import *
 from tkinter import filedialog, messagebox
+from yolo import YOLO
 from yolo3.utils import rand
 from PIL import Image, ImageTk
 import requests
@@ -35,7 +36,6 @@ sole_polygon = []
 point_bounding_box_list = [] #temporally store bound for future use
 sole_polygon_list = [] # for draw polygon
 
-#x=YOLO()
 postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1","camera": "0"}
 
 #database path
@@ -48,117 +48,64 @@ file_types = [
     "seat", "table"
 ]
 
-class DB_4point():
+class yolo_window():
     def __init__(self):
-        # create a database or connect one
-        self.conn = sqlite3.connect(DATABASE_PATH)
-        #create a cursor
-        self.c = self.conn.cursor()
+        #self.yolo = YOLO()
 
-        # create a table
-        '''
-        self.c.execute("""CREATE TABLE seats_4point(
-            file_name text,
-            seat_name text,
-            point1 integer,
-            point2 integer,
-            point3 integer,
-            point4 integer,
-            location text,
-            camera_name text
-            )""")
-        '''
-        # commit changes
-        self.conn.commit()
-        # close connection
-        self.conn.close()
+        yolo_win = Toplevel()
+        yolo_win.title("YOLO image detection")
+        yolo_win.geometry("400x400")
 
-    def select(self, table_name:str, file_name:str):
-        self.conn = sqlite3.connect(DATABASE_PATH)
-        self.c = self.conn.cursor()
+        # enter video path
+        video_path_label = Label(yolo_win, text="Video Path: ")
+        video_path_label.grid(row=0, column=0, pady=10, padx=5)
+        self.video_path_entry = Entry(yolo_win)
+        self.video_path_entry.grid(row=0, column=1, pady=5)
 
-        self.c.execute("SELECT * FROM " + table_name + " WHERE file_name = '" + file_name + "'")
-        records = self.c.fetchall()
-        print(records)
+        # start detect
+        yolo_done_btn = Button(yolo_win, text="Done", command=self.detect_img)
+        yolo_done_btn.grid(row=5, column=0 ,columnspan=3, padx=10, pady= 10)
 
-        self.conn.commit()
-        self.conn.close()
+        if bounding_box_list == []:
+            messagebox.showerror("Error", "Bounding Box is Empty")
+            yolo_win.destroy()
+            
+    # TODO new function to list yolo detect result
+    #! need new crop function!!!!!!!!
+    def detect_img(self):
+        pass
+        if self.video_path_entry.get() == "":
+            messagebox.showerror("Error","Please enter Video Path")
+        else:
+            video_path = self.video_path_entry.get()
+            capture = cv2.VideoCapture(video_path)
+            fps = int(capture.get(cv2.CAP_PROP_FPS))
+            total_frame = capture.get(cv2.CAP_PROP_FRAME_COUNT)
+            while True:
+                for j in range(int(total_frame)):
+                    ret, frame = capture.read()
+                    if not ret:
+                        break
+                    #一秒
+                    if j % fps == 0:
+                        image=Image.fromarray(frame)
+                        image = image.resize((1200, 600))
+                        for i in range(len(bounding_box_list)):
+                            img=image.crop((bounding_box_list[i][1],bounding_box_list[i][2],bounding_box_list[i][3],bounding_box_list[i][4]))
+                            r_image, people_num = self.yolo.detect_image(img)
+                            bounding_box_list[i][5]=people_num
+                            
+                            postdata_toserver["seat"]=bounding_box_list[i][0]
+                            postdata_toserver["location"]=bounding_box_list[i][6]
+                            postdata_toserver["camera"]=bounding_box_list[i][7]
+                            postdata_toserver["occupy"]=str(people_num)
+                            r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
+                            
+            yolo.close_session()
 
-        return records
-    
-    # add new file to database
-    def insert(self, table_name:str, file_name:str, seat_name:str, pt1:int, pt2:int, pt3:int, pt4:int, location:str, camera_name:str):
-        self.conn = sqlite3.connect(DATABASE_PATH)
-        self.c = self.conn.cursor()
-        #Insert into table
-        self.c.execute("INSERT INTO "+ table_name +" VALUES (:file_name, :seat_name, :point1, :point2, :point3, :point4, :location, :camera_name)",
-                {
-                    'file_name': file_name,
-                    'seat_name': seat_name,
-                    'point1':pt1,
-                    'point2':pt2,
-                    'point3':pt3,
-                    'point4':pt4,
-                    'location': location,
-                    'camera_name': camera_name
-                })
-
-        self.conn.commit()
-        self.conn.close()
-
-    def query(self, table_name:str):
-        self.conn = sqlite3.connect(DATABASE_PATH)
-        self.c = self.conn.cursor()
-
-        self.c.execute("SELECT * FROM " + table_name)
-        records = self.c.fetchall()
-        print(records)
-
-        self.conn.commit()
-        self.conn.close()
-
-        return records
-
-    #delete using file_name
-    def delete(self, table_name:str, file_name:str):
-        self.conn = sqlite3.connect(DATABASE_PATH)
-        c = self.conn.cursor()
-
-        c.execute("DELETE from "+ table_name +" WHERE file_name = '" + file_name + "'")
-
-        self.conn.commit()
-        self.conn.close()
-
-    #edit file
-    def update(self, file_name:str, table_name:str,seat_name:str, pt1:int, pt2:int, pt3:int, pt4:int, location:str, camera_name:str, oid:int):
-        self.conn = sqlite3.connect(DATABASE_PATH)
-        c = self.conn.cursor()
-
-        c.execute("UPDATE "+ table_name +" SET""""
-        file_name = :file_name,
-        seat_name = :seat_name, 
-        point1 = :pt1, 
-        point2 = :pt2, 
-        point3 = :pt3, 
-        point4 = :pt4, 
-        location = :location, 
-        camera_name = :camera_name
-
-        WHERE oid = :oid""",
-        {   
-            'file_name': file_name,
-            'seat_name': seat_name,
-            'pt1': pt1,
-            'pt2': pt2,
-            'pt3': pt3,
-            'pt4': pt4,
-            'location': location,
-            'camera_name': camera_name,
-            'oid': oid,
-        })
-
-        self.conn.commit()
-        self.conn.close()
+    def ok_event(self): 
+        win.destroy()
+        #detect_img()
 
 class DB_4point_xy():
     def __init__(self):
@@ -301,15 +248,16 @@ class database_window():
             messagebox.showerror("No data", "Database is Empty!")
         else:
             for record in db_win_records:
-                # collect all file name, assume SAME file_name with SAME location and camera_name
-                if files == []:
+                # collect all file name, assume SAME file_name with SAME location and camera_name.
+                # and only count seat #
+                if files == [] and record[1] == 'seat':
                     files.append([])
                     files[0].append(record[0]) #file name
                     files[0].append(record[1]) #file type
                     files[0].append(1) #count seats with same file name
                     files[0].append(record[11]) #location
                     files[0].append(record[12]) #camera_name
-                else:
+                elif files != [] and record[1] == 'seat':
                     #check for duplicate
                     ifnew = 0
                     for index in files:
@@ -374,7 +322,7 @@ class database_window():
     #load the data in database to bounding_box_list
     def load(self, file_name):
         print("--LOAD--")
-        db_win = DB_4point()
+        db_win = DB_4point_xy()
         
         records = db_win.select(TABLE_XY_NAME, file_name)
         bounding_box_listbox.delete(0,'end')
@@ -382,9 +330,6 @@ class database_window():
         global bounding_box_list
         bounding_box_list = []
         for record in records:
-            #set entry to previous value
-            bounding_box_listbox.insert('end', record[2]) #insert seat name to listbox
-
             # bounding_box_list = ["file_type", "seat_name", point1, point2, point3, point4, "location", "camera_name"]
             bounding_box_list.append([])
             bounding_box_list[(len(bounding_box_list)-1)].append(record[1]) #file type
@@ -395,6 +340,10 @@ class database_window():
             bounding_box_list[(len(bounding_box_list)-1)].append((record[9],record[10])) #pt2
             bounding_box_list[(len(bounding_box_list)-1)].append(record[11]) #location
             bounding_box_list[(len(bounding_box_list)-1)].append(record[12]) #camera name
+
+        #update listbox
+        tool = Tool()
+        tool.listbox_update()
 
         #print(bounding_box_list)
 
@@ -411,7 +360,7 @@ class database_window():
 
     #delete bounding_box_list in database
     def delete_file(self, file_name):
-        db_win = DB_4point()
+        db_win = DB_4point_xy()
 
         response = messagebox.askyesno(title="Delete", message="Delete the file?")
         if response == 1:
@@ -442,12 +391,9 @@ class Tool():
             self.tool = tool_name
 
             #clean all data
-            bounding_box_listbox.delete(0,'end')
             self.clean_canvas()
 
         if self.tool == "rect":
-            #print("rectttt")
-            bounding_box_list = [] 
 
             # disable widget in divider_frame
             for child in divider_frame.winfo_children():
@@ -470,8 +416,6 @@ class Tool():
             canvas.bind('<B1-Motion>', self.rect_moving_mouse) # 鼠标左键按下并移动
 
         elif tool.tool == "point":
-            #print("pointtttt")
-            bounding_box_list = []
             point_cnt = 0
 
             # enable widget in divider_frame
@@ -531,8 +475,6 @@ class Tool():
         else:          
             # if all divide seat was named
             if seat_divide_cnt < int(divider_entry.get()) :
-                # add seat name to listbox
-                bounding_box_listbox.insert('end', seat_number_entry.get())
 
                 # append data to bounding box list
                 bounding_box_list.append([])
@@ -544,6 +486,9 @@ class Tool():
                 bounding_box_list[-1].append((self.side2[seat_divide_cnt][0],self.side2[seat_divide_cnt][1]))
                 bounding_box_list[-1].append(floor_entry.get())
                 bounding_box_list[-1].append(camera_entry.get())
+
+                #update listbox
+                self.listbox_update()
 
                 #seat number + 1 automatically
                 seat_name = seat_number_entry.get()
@@ -690,10 +635,8 @@ class Tool():
         if seat_number_entry.get() == "" or floor_entry.get() == "" or camera_entry.get() == "":
             messagebox.showerror("Error","Please Enter parameter")
         else:
-            # add seat name to listbox
-            bounding_box_listbox.insert('end', seat_name)
             # store image coordinate
-            corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
+            self.corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
             left_mouse_up_x, left_mouse_up_y)
 
             #seat number + 1 automatically
@@ -711,22 +654,56 @@ class Tool():
         sole_rectangle = canvas.create_rectangle(left_mouse_down_x, left_mouse_down_y, moving_mouse_x,
                         moving_mouse_y, outline='red')
 
+    def corp_img(self,source_path, save_path, x_begin, y_begin, x_end, y_end):
+        if x_begin < x_end:
+            min_x = x_begin
+            max_x = x_end
+        else:
+            min_x = x_end
+            max_x = x_begin
+        if y_begin < y_end:
+            min_y = y_begin
+            max_y = y_end
+        else:
+            min_y = y_end
+            max_y = y_begin
+        bounding_box_list.append([])
+        bounding_box_list[-1].append(file_type_data.get()) #file type
+        bounding_box_list[-1].append(seat_name)
+        bounding_box_list[-1].append((min_x,min_y))
+        bounding_box_list[-1].append((min_x,max_y))
+        bounding_box_list[-1].append((max_x,max_y))
+        bounding_box_list[-1].append((max_x,min_y))
+        bounding_box_list[-1].append(seat_floor)
+        bounding_box_list[-1].append(camera_number)
+
+        #update listbox
+        self.listbox_update()
+
+        print(bounding_box_list)
+
     #display all bounding box on canvas
     def display_all(self):
         global bounding_box_text
         #detect if bounding box already display on canvas
         if sole_polygon == []:
             for box in bounding_box_list:
-                sole_polygon.append(canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='red', fill=''))
-                #display text for bounding box
-                bounding_box_text.append(canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'blue', anchor="nw", font=("Helvetica", 15)))
-                bounding_box_text.append(canvas.create_rectangle(canvas.bbox(bounding_box_text[-1]),fill="white"))
+                if box[0] == 'seat':
+                    sole_polygon.append(canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='red', fill=''))
+                    #display text for bounding box
+                    bounding_box_text.append(canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'red', anchor="nw", font=("Helvetica", 15)))
+                    bounding_box_text.append(canvas.create_rectangle(canvas.bbox(bounding_box_text[-1]),fill="white"))
+                else:
+                    sole_polygon.append(canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='yellow', fill=''))
+                    #display text for bounding box
+                    bounding_box_text.append(canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'blue', anchor="nw", font=("Helvetica", 15)))
+                    bounding_box_text.append(canvas.create_rectangle(canvas.bbox(bounding_box_text[-1]),fill="white"))
                 #move rectangle under the text
                 canvas.tag_lower(bounding_box_text[-1],bounding_box_text[-2])            
         else:
             self.clean_canvas()
             
-
+    # clear canvas
     def clean_canvas(self):
         global sole_polygon, sole_rectangle, bounding_box_text
         for polygon in sole_polygon:
@@ -740,66 +717,17 @@ class Tool():
         canvas.delete(sole_rectangle)
         sole_rectangle =[]
 
-def ok_event(): 
-    win.destroy()
-    #detect_img(x)
-
-#! need new crop function!!!!!!!!
-def detect_img(yolo):
-    video_path = "seat_video1.mp4"
-    capture = cv2.VideoCapture(video_path)
-    fps = int(capture.get(cv2.CAP_PROP_FPS))
-    total_frame = capture.get(cv2.CAP_PROP_FRAME_COUNT)
-    while True:
-        for j in range(int(total_frame)):
-            ret, frame = capture.read()
-            if not ret:
-                break
-            #一秒
-            if j % fps == 0:
-                image=Image.fromarray(frame)
-                image = image.resize((1200, 600))
-                for i in range(len(bounding_box_list)):
-                    img=image.crop((bounding_box_list[i][1],bounding_box_list[i][2],bounding_box_list[i][3],bounding_box_list[i][4]))
-                    r_image, people_num = yolo.detect_image(img)
-                    bounding_box_list[i][5]=people_num
-                    
-                    postdata_toserver["seat"]=bounding_box_list[i][0]
-                    postdata_toserver["location"]=bounding_box_list[i][6]
-                    postdata_toserver["camera"]=bounding_box_list[i][7]
-                    postdata_toserver["occupy"]=str(people_num)
-                    r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
-                    
-    yolo.close_session()
-
-def corp_img(source_path, save_path, x_begin, y_begin, x_end, y_end):
-    if x_begin < x_end:
-        min_x = x_begin
-        max_x = x_end
-    else:
-        min_x = x_end
-        max_x = x_begin
-    if y_begin < y_end:
-        min_y = y_begin
-        max_y = y_end
-    else:
-        min_y = y_end
-        max_y = y_begin
-    bounding_box_list.append([])
-    bounding_box_list[-1].append(file_type_data.get()) #file type
-    bounding_box_list[-1].append(seat_name)
-    bounding_box_list[-1].append((min_x,min_y))
-    bounding_box_list[-1].append((min_x,max_y))
-    bounding_box_list[-1].append((max_x,max_y))
-    bounding_box_list[-1].append((max_x,min_y))
-    bounding_box_list[-1].append(seat_floor)
-    bounding_box_list[-1].append(camera_number)
-    print(bounding_box_list)
+    def listbox_update(self):
+        bounding_box_listbox.insert(0, "  file type   |    seat name")
+        bounding_box_listbox.delete(1,'end')
+        for box in bounding_box_list:
+            bounding_box_listbox.insert('end', "  "+ box[0] +"                    "+ box[1])
 
 def undo_event():
+    tool = Tool()
     if len(bounding_box_list)>0:
         bounding_box_list.pop()
-        bounding_box_listbox.delete(len(bounding_box_list))
+        tool.listbox_update()
         print("--UNDO--")
         print(bounding_box_list)
 
@@ -817,7 +745,7 @@ if __name__ == '__main__':
     global var
 
     win = Tk()
-    db = DB_4point() # data base
+    win.title("Library Seats")
     db_xy = DB_4point_xy()
     
 
@@ -915,7 +843,7 @@ if __name__ == '__main__':
     db_button.grid(row=7, column=0, columnspan=3,pady=(30,0))
 
     #proceed to YOLO
-    okbutton = Button(frame2, text='YOLO detect', command=ok_event, width=15)
+    okbutton = Button(frame2, text='YOLO detect', command=yolo_window, width=15)
     okbutton.grid(row=8, column=0, columnspan=3,pady=10)
     #? ============ frame 2 ===========
 
