@@ -1,5 +1,7 @@
 from django.shortcuts import render
 from .models import Location, Seat, Occupy_History
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 # Create your views here.
 def  home(response):
@@ -10,14 +12,8 @@ def location(response, location_name):
     location_list = Location.objects.all()
     try:
         location = Location.objects.get(name=location_name)
-        
-        #count the available seats
-        available_seat=0
-        for seat in location.seat_set.all():
-            if seat.occupy == False:
-                available_seat +=1
 
-        return render(response, "main/location.html", { "location_list":location_list, "location":location, "available_seat":available_seat})
+        return render(response, "main/location.html", { "location_list":location_list, "location":location})
 
     except Location.DoesNotExist:
         return render(response, "main/error_404.html", {})
@@ -35,11 +31,31 @@ def create(response):
         s = Seat()
         s.location = Location.objects.get(name=floor)
         s.seat_number=seat_number
+        s.camera_number=0
         s.seat_position_x = (int(seat_number)%10) * 70
         s.seat_position_y = 0
         if occupy >"0":
             s.occupy=True
         else:
             s.occupy=False
-        s.save()        
+        s.save()    
+
+
+        location = Location.objects.get(name='1F')
+        
+        #count the available seats
+        available_seat=0
+        for seat in location.seat_set.all():
+            if seat.occupy == False:
+                available_seat +=1
+        available_seat= str(available_seat)
+        
+        layer = get_channel_layer()
+        async_to_sync(layer.group_send)(
+            'chat',
+            {
+                'type': 'chat_message',
+                'message': available_seat
+            }
+        )
     

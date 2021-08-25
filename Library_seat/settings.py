@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     'ip_camera.apps.IpCameraConfig',
     'analysis.apps.AnalysisConfig',
     'rest_framework',
-    
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -76,7 +76,15 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'Library_seat.wsgi.application'
-
+ASGI_APPLICATION = 'Library_seat.asgi.application'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases

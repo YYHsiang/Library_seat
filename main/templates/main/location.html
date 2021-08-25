@@ -13,7 +13,7 @@
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pause" viewBox="0 0 16 16">
       <path d="M6 3.5a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5zm4 0a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5z"/>
     </svg>
-    Available Seat: <span class="badge bg-primary">{{ available_seat }}</span>    
+    Available Seat: <span class="badge bg-primary", id="chat-log">0</span>    
     </h3>
   </div>
   <div class="row" ,name="seat_display" , style="position: relative">
@@ -38,4 +38,22 @@
       {% endif %}
   {% endfor %}
   </div>
+
+<script>
+        const chatSocket = new WebSocket(
+            'ws://'
+            + window.location.host
+            + '/ws/chat/'
+        );
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            document.querySelector('#chat-log').innerText =data.message;
+        };
+
+        chatSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+</script>
 {% endblock content %}
+
