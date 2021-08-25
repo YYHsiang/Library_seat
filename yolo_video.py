@@ -6,6 +6,8 @@ import math
 import os
 from tkinter import *
 from tkinter import filedialog, messagebox
+import random
+from tkinter import ttk
 from yolo import YOLO
 from yolo3.utils import rand
 from PIL import Image, ImageTk
@@ -368,10 +370,12 @@ class database_window():
             self.db_window.focus() 
 
 class Tool():
-    def __init__(self):
+    def __init__(self, zoom):
         self.tool = "rect"
         self.side1 = [] #logn side 1
         self.side2 = [] #logn side 2
+        self.canvas = zoom.canvas
+        self.zoom = zoom
 
         #? ============ select tool frame ===========
         rect_select_btn = Button(select_tool_frame, text="Rect", command= lambda: self.change_tool("rect"), width=5)
@@ -379,6 +383,9 @@ class Tool():
 
         point_select_btn = Button(select_tool_frame, text="Point", command= lambda: self.change_tool("point"), width=5)
         point_select_btn.grid(row=0, column=1, padx=10)
+
+        move_select_btn = Button(select_tool_frame, text="Move", command= lambda: self.change_tool("move"), width=5)
+        move_select_btn.grid(row=0, column=2,padx=10)
         #? ============ select tool frame ===========
 
     def change_tool(self, tool_name:str):
@@ -408,12 +415,20 @@ class Tool():
                                     command= lambda: self.change_tool("point"), width=5)
             point_select_btn.grid(row=0, column=1, padx=10)
 
-            canvas.unbind('<Button-1>')
-            canvas.unbind('<ButtonRelease-1>')
-            canvas.unbind('<B1-Motion>')
-            canvas.bind('<Button-1>', self.rect_left_mouse_down) # 鼠标左键按下
-            canvas.bind('<ButtonRelease-1>', self.rect_left_mouse_up) # 鼠标左键释放
-            canvas.bind('<B1-Motion>', self.rect_moving_mouse) # 鼠标左键按下并移动
+            move_select_btn = Button(select_tool_frame, text="Move", state= NORMAL, 
+                                    command= lambda: self.change_tool("move"), width=5)
+            move_select_btn.grid(row=0, column=2, padx=10)
+
+            self.canvas.unbind('<MouseWheel>')
+            self.canvas.unbind('<ButtonPress-1>')
+            self.canvas.unbind('<Configure>')
+            self.canvas.unbind('<Button-1>')
+            self.canvas.unbind('<ButtonRelease-1>')
+            self.canvas.unbind('<B1-Motion>')
+
+            self.canvas.bind('<Button-1>', self.rect_left_mouse_down) # 鼠标左键按下
+            self.canvas.bind('<ButtonRelease-1>', self.rect_left_mouse_up) # 鼠标左键释放
+            self.canvas.bind('<B1-Motion>', self.rect_moving_mouse) # 鼠标左键按下并移动
 
         elif tool.tool == "point":
             point_cnt = 0
@@ -431,10 +446,41 @@ class Tool():
                                 command= lambda: self.change_tool("point"), width=5)
             point_select_btn.grid(row=0, column=1, padx=10)
 
-            canvas.unbind('<Button-1>')
-            canvas.unbind('<ButtonRelease-1>')
-            canvas.unbind('<B1-Motion>')
-            canvas.bind('<Button-1>', self.point_mouse_down)
+            move_select_btn = Button(select_tool_frame, text="Move", state= NORMAL, 
+                                    command= lambda: self.change_tool("move"), width=5)
+            move_select_btn.grid(row=0, column=2, padx=10)
+            
+            self.canvas.unbind('<MouseWheel>')
+            self.canvas.unbind('<ButtonPress-1>')
+            self.canvas.unbind('<Configure>')
+            self.canvas.unbind('<Button-1>')
+            self.canvas.unbind('<ButtonRelease-1>')
+            self.canvas.unbind('<B1-Motion>')
+
+            self.canvas.bind('<Button-1>', self.point_mouse_down)
+
+        elif tool.tool == "move":
+            rect_select_btn = Button(select_tool_frame, text="Rect", state= NORMAL,
+                                command= lambda: self.change_tool("rect"), width=5)
+            rect_select_btn.grid(row=0, column=0,padx= 10,pady= 5)
+
+            point_select_btn = Button(select_tool_frame, text="Point", state= NORMAL,
+                                command= lambda: self.change_tool("point"), width=5)
+            point_select_btn.grid(row=0, column=1, padx=10)
+
+            move_select_btn = Button(select_tool_frame, text="Move", state= DISABLED, 
+                                    command= lambda: self.change_tool("move"), width=5)
+            move_select_btn.grid(row=0, column=2, padx=10)
+
+            self.canvas.unbind('<Button-1>')
+            self.canvas.unbind('<ButtonRelease-1>')
+            self.canvas.unbind('<B1-Motion>')
+
+            # Bind events to the Canvas
+            self.canvas.bind('<Configure>', self.zoom.show_image)  # canvas is resized
+            self.canvas.bind('<ButtonPress-1>', self.zoom.move_from)
+            self.canvas.bind('<B1-Motion>',     self.zoom.move_to)
+            self.canvas.bind('<MouseWheel>', self.zoom.wheel)  # with Windows and MacOS, but not Linux
 
     # TODO: divide selected aera
     def divide(self):
@@ -453,14 +499,14 @@ class Tool():
             # draw divided polygon
             global sole_polygon
             for cnt in range(len(self.side1) - 1):
-                sole_polygon.append(canvas.create_polygon(self.side1[cnt], self.side1[cnt+1], self.side2[cnt+1], self.side2[cnt], outline='green', fill=''))
+                sole_polygon.append(self.canvas.create_polygon(self.side1[cnt], self.side1[cnt+1], self.side2[cnt+1], self.side2[cnt], outline='green', fill=''))
 
             print(len(sole_polygon))
             global seat_divide_cnt
             seat_divide_cnt = 0
 
             # draw polygon to display current seat that needs to define seat_name...
-            sole_polygon.append(canvas.create_polygon(self.side1[seat_divide_cnt], self.side1[seat_divide_cnt+1], self.side2[seat_divide_cnt+1], self.side2[seat_divide_cnt],outline='yellow' , width= 5, fill=''))
+            sole_polygon.append(self.canvas.create_polygon(self.side1[seat_divide_cnt], self.side1[seat_divide_cnt+1], self.side2[seat_divide_cnt+1], self.side2[seat_divide_cnt],outline='yellow' , width= 5, fill=''))
             print(len(sole_polygon))
 
     # TODO: devide aear into specific seats
@@ -502,8 +548,8 @@ class Tool():
                 # draw polygon to display next seat that needs to define seat_name...
                 if seat_divide_cnt < int(divider_entry.get()) :
                     if len(sole_polygon) > (int(divider_entry.get())):
-                        canvas.delete(sole_polygon[-1])
-                    sole_polygon.append(canvas.create_polygon(self.side1[seat_divide_cnt], self.side1[seat_divide_cnt+1], self.side2[seat_divide_cnt+1], self.side2[seat_divide_cnt],outline='yellow' , width= 5, fill=''))
+                        self.canvas.delete(sole_polygon[-1])
+                    sole_polygon.append(self.canvas.create_polygon(self.side1[seat_divide_cnt], self.side1[seat_divide_cnt+1], self.side2[seat_divide_cnt+1], self.side2[seat_divide_cnt],outline='yellow' , width= 5, fill=''))
                     print(len(sole_polygon))
                 # all seat value input is complete
                 else:
@@ -608,7 +654,7 @@ class Tool():
             if point_cnt == 3:
                 if sole_polygon is not None:
                     self.clean_canvas()
-                sole_polygon.append(canvas.create_polygon(sole_polygon_list, outline='red', fill=''))
+                sole_polygon.append(self.canvas.create_polygon(sole_polygon_list, outline='red', fill=''))
                 print(len(sole_polygon))
                 point_cnt = 0
             else:
@@ -636,8 +682,11 @@ class Tool():
             messagebox.showerror("Error","Please Enter parameter")
         else:
             # store image coordinate
-            self.corp_img(img_path, 'one_corp.jpg', left_mouse_down_x, left_mouse_down_y,
-            left_mouse_up_x, left_mouse_up_y)
+            self.corp_img(img_path, 'one_corp.jpg', 
+                        left_mouse_down_x+self.canvas.canvasx(0), 
+                        left_mouse_down_y+self.canvas.canvasy(0),
+                        left_mouse_up_x+self.canvas.canvasx(0), 
+                        left_mouse_up_y+self.canvas.canvasy(0))
 
             #seat number + 1 automatically
             seat_number_entry.delete(0,'end')
@@ -651,8 +700,11 @@ class Tool():
         moving_mouse_y = event.y
         if sole_rectangle is not None:
             self.clean_canvas() # 删除前一个矩形
-        sole_rectangle = canvas.create_rectangle(left_mouse_down_x, left_mouse_down_y, moving_mouse_x,
-                        moving_mouse_y, outline='red')
+        sole_rectangle = self.canvas.create_rectangle(left_mouse_down_x+self.canvas.canvasx(0),
+                                                    left_mouse_down_y+self.canvas.canvasy(0), 
+                                                    moving_mouse_x+ self.canvas.canvasx(0),
+                                                    moving_mouse_y+self.canvas.canvasy(0), 
+                                                    outline='red')
 
     def corp_img(self,source_path, save_path, x_begin, y_begin, x_end, y_end):
         if x_begin < x_end:
@@ -689,17 +741,17 @@ class Tool():
         if sole_polygon == []:
             for box in bounding_box_list:
                 if box[0] == 'seat':
-                    sole_polygon.append(canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='red', fill=''))
+                    sole_polygon.append(self.canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='red', fill=''))
                     #display text for bounding box
-                    bounding_box_text.append(canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'red', anchor="nw", font=("Helvetica", 15)))
-                    bounding_box_text.append(canvas.create_rectangle(canvas.bbox(bounding_box_text[-1]),fill="white"))
+                    bounding_box_text.append(self.canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'red', anchor="nw", font=("Helvetica", 15)))
+                    bounding_box_text.append(self.canvas.create_rectangle(self.canvas.bbox(bounding_box_text[-1]),fill="white"))
                 else:
-                    sole_polygon.append(canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='yellow', fill=''))
+                    sole_polygon.append(self.canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='yellow', fill=''))
                     #display text for bounding box
-                    bounding_box_text.append(canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'blue', anchor="nw", font=("Helvetica", 15)))
-                    bounding_box_text.append(canvas.create_rectangle(canvas.bbox(bounding_box_text[-1]),fill="white"))
+                    bounding_box_text.append(self.canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'blue', anchor="nw", font=("Helvetica", 15)))
+                    bounding_box_text.append(self.canvas.create_rectangle(self.canvas.bbox(bounding_box_text[-1]),fill="white"))
                 #move rectangle under the text
-                canvas.tag_lower(bounding_box_text[-1],bounding_box_text[-2])            
+                self.canvas.tag_lower(bounding_box_text[-1],bounding_box_text[-2])            
         else:
             self.clean_canvas()
             
@@ -707,14 +759,14 @@ class Tool():
     def clean_canvas(self):
         global sole_polygon, sole_rectangle, bounding_box_text
         for polygon in sole_polygon:
-            canvas.delete(polygon)
+            self.canvas.delete(polygon)
         sole_polygon = []
 
         for text in bounding_box_text:
-            canvas.delete(text)
+            self.canvas.delete(text)
         bounding_box_text = []
 
-        canvas.delete(sole_rectangle)
+        self.canvas.delete(sole_rectangle)
         sole_rectangle =[]
 
     def listbox_update(self):
@@ -722,6 +774,131 @@ class Tool():
         bounding_box_listbox.delete(1,'end')
         for box in bounding_box_list:
             bounding_box_listbox.insert('end', "  "+ box[0] +"                    "+ box[1])
+
+class AutoScrollbar(ttk.Scrollbar):
+    ''' A scrollbar that hides itself if it's not needed.
+        Works only if you use the grid geometry manager '''
+    def set(self, lo, hi):
+        if float(lo) <= 0.0 and float(hi) >= 1.0:
+            self.grid_remove()
+        else:
+            self.grid()
+            ttk.Scrollbar.set(self, lo, hi)
+
+    def pack(self, **kw):
+        raise tk.TclError('Cannot use pack with this widget')
+
+    def place(self, **kw):
+        raise tk.TclError('Cannot use place with this widget')
+
+class Zoom_Advanced(ttk.Frame):
+    ''' Advanced zoom of the image '''
+    def __init__(self, mainframe, path):
+        ''' Initialize the main Frame '''
+        ttk.Frame.__init__(self, master=mainframe)
+        #self.master.title('Zoom with mouse wheel')
+        # Vertical and horizontal scrollbars for canvas
+        vbar = AutoScrollbar(self.master, orient='vertical')
+        hbar = AutoScrollbar(self.master, orient='horizontal')
+        vbar.grid(row=0, column=1, sticky='ns')
+        hbar.grid(row=1, column=0, sticky='we')
+        # Create canvas and put image on it
+        self.canvas = Canvas(self.master, highlightthickness=0,
+                                xscrollcommand=hbar.set, yscrollcommand=vbar.set, width=1200, height=675)
+        self.canvas.grid(row=0, column=0, sticky='nswe')
+        self.canvas.update()  # wait till canvas is created
+        vbar.configure(command=self.scroll_y)  # bind scrollbars to the canvas
+        hbar.configure(command=self.scroll_x)
+        # Make the canvas expandable
+        self.master.rowconfigure(0, weight=1)
+        self.master.columnconfigure(0, weight=1)
+        
+        self.image = Image.open(path)  # open image
+        self.width, self.height = self.image.size
+        self.imscale = 1.0  # scale for the canvaas image
+        self.delta = 1.3  # zoom magnitude
+        # Put image into container rectangle and use it to set proper coordinates to the image
+        self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
+        self.show_image()
+
+    def scroll_y(self, *args, **kwargs):
+        ''' Scroll canvas vertically and redraw the image '''
+        self.canvas.yview(*args, **kwargs)  # scroll vertically
+        self.show_image()  # redraw the image
+
+    def scroll_x(self, *args, **kwargs):
+        ''' Scroll canvas horizontally and redraw the image '''
+        self.canvas.xview(*args, **kwargs)  # scroll horizontally
+        self.show_image()  # redraw the image
+
+    def move_from(self, event):
+        ''' Remember previous coordinates for scrolling with the mouse '''
+        self.canvas.scan_mark(event.x, event.y)
+
+    def move_to(self, event):
+        ''' Drag (move) canvas to the new position '''
+        self.canvas.scan_dragto(event.x, event.y, gain=1)
+        self.show_image()  # redraw the image
+
+    def wheel(self, event):
+        ''' Zoom with mouse wheel '''
+        x = self.canvas.canvasx(event.x)
+        y = self.canvas.canvasy(event.y)
+        bbox = self.canvas.bbox(self.container)  # get image area
+        if bbox[0] < x < bbox[2] and bbox[1] < y < bbox[3]: pass  # Ok! Inside the image
+        else: return  # zoom only inside image area
+        scale = 1.0
+        # Respond to Linux (event.num) or Windows (event.delta) wheel event
+        if event.num == 5 or event.delta == -120:  # scroll down
+            i = min(self.width, self.height)
+            if int(i * self.imscale) < 30: return  # image is less than 30 pixels
+            self.imscale /= self.delta
+            scale        /= self.delta
+        if event.num == 4 or event.delta == 120:  # scroll up
+            i = min(self.canvas.winfo_width(), self.canvas.winfo_height())
+            if i < self.imscale: return  # 1 pixel is bigger than the visible area
+            self.imscale *= self.delta
+            scale        *= self.delta
+        self.canvas.scale('all', x, y, scale, scale)  # rescale all canvas objects
+        self.show_image()
+
+    def show_image(self, event=None):
+        ''' Show image on the Canvas '''
+        bbox1 = self.canvas.bbox(self.container)  # get image area
+        # Remove 1 pixel shift at the sides of the bbox1
+        bbox1 = (bbox1[0] + 1, bbox1[1] + 1, bbox1[2] - 1, bbox1[3] - 1)
+        bbox2 = (self.canvas.canvasx(0),  # get visible area of the canvas
+                 self.canvas.canvasy(0),
+                 self.canvas.canvasx(self.canvas.winfo_width()),
+                 self.canvas.canvasy(self.canvas.winfo_height()))
+        bbox = [min(bbox1[0], bbox2[0]), min(bbox1[1], bbox2[1]),  # get scroll region box
+                max(bbox1[2], bbox2[2]), max(bbox1[3], bbox2[3])]
+        if bbox[0] == bbox2[0] and bbox[2] == bbox2[2]:  # whole image in the visible area
+            bbox[0] = bbox1[0]
+            bbox[2] = bbox1[2]
+        if bbox[1] == bbox2[1] and bbox[3] == bbox2[3]:  # whole image in the visible area
+            bbox[1] = bbox1[1]
+            bbox[3] = bbox1[3]
+        self.canvas.configure(scrollregion=bbox)  # set scroll region
+        x1 = max(bbox2[0] - bbox1[0], 0)  # get coordinates (x1,y1,x2,y2) of the image tile
+        y1 = max(bbox2[1] - bbox1[1], 0)
+        x2 = min(bbox2[2], bbox1[2]) - bbox1[0]
+        y2 = min(bbox2[3], bbox1[3]) - bbox1[1]
+
+        print("x1: " + str(x1) + " y1: " + str(y1) + " x2: " + str(x2) + " y2: " + str(y2))
+        #print(bbox1)
+        #print(bbox2)
+        #print(bbox)
+        if int(x2 - x1) > 0 and int(y2 - y1) > 0:  # show image if it in the visible area
+            x = min(int(x2 / self.imscale), self.width)   # sometimes it is larger on 1 pixel...
+            y = min(int(y2 / self.imscale), self.height)  # ...and sometimes not
+            image = self.image.crop((int(x1 / self.imscale), int(y1 / self.imscale), x, y))
+            imagetk = ImageTk.PhotoImage(image.resize((int(x2 - x1), int(y2 - y1))))
+            imageid = self.canvas.create_image(max(bbox2[0], bbox1[0]), max(bbox2[1], bbox1[1]),
+                                               anchor='nw', image=imagetk)
+            self.canvas.lower(imageid)  # set image into background
+            self.canvas.imagetk = imagetk  # keep an extra reference to prevent garbage-collection
+            
 
 def undo_event():
     tool = Tool()
@@ -735,10 +912,10 @@ def openSetupImage(): #select an image to setup bounding box
     print("--OPEN IMAGE--")
     global setup_img, setup_image, img_path
     #img_path = filedialog.askopenfilename(initialdir="/", title="open an image", filetypes= ( ("all files", "*.*"), ("jpg files", "*.jpg") ))
-    img_path = "test_image/seat_angle1_ref.jpg"
+    img_path = "test_image/diff2.jpg"
     image = Image.open(img_path)
-    setup_image=image.resize((1200, 675))
-    setup_img = ImageTk.PhotoImage(setup_image)
+    #setup_image=image.resize((1200, 675))
+    #setup_img = ImageTk.PhotoImage(setup_image)
 
 if __name__ == '__main__':
 
@@ -772,9 +949,14 @@ if __name__ == '__main__':
     entry_frame = LabelFrame(frame2)
     entry_frame.grid(row=3, column=0, columnspan=2, pady=10, sticky='W')
     #? ====== Frame ======
+    
+    #! +++++++++++++++++++++
+    img_path = "test_image/diff2.jpg"
+    app = Zoom_Advanced(frame1, img_path)
 
     # set tool to rect tool
-    tool = Tool() # Selecting tools
+    tool = Tool(app) # Selecting tools
+    
 
     #? ============ frame 2 ===========
 
@@ -850,15 +1032,17 @@ if __name__ == '__main__':
     
 
     #select a image to setup bounding box
-    openSetupImage() 
+    #openSetupImage() 
     
+    
+    '''
     #bulit canvas
     setup_image_x, setup_image_y = setup_image.size
     canvas = Canvas(frame1, width=setup_image_x, height=setup_image_y, bg='pink')
     i = canvas.create_image(0, 0, anchor='nw', image=setup_img)
     canvas.pack()
-
-    tool.change_tool("rect")
+    '''
+    tool.change_tool("move")
 
     win.mainloop()
     
