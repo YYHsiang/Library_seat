@@ -20,14 +20,17 @@ def location(response, location_name):
 
 def create(response):
     if response.method == "POST":
+        #obtain request data
         seat_number=response.POST.get('seat',0)
         floor = (response.POST.get('location',0))
         occupy = response.POST.get('occupy',0)
 
+        #remove same seat_number
         rows = Seat.objects.filter(seat_number=seat_number)
         for r in rows: 
             r.delete() 
 
+        #add new seat_number item
         s = Seat()
         s.location = Location.objects.get(name=floor)
         s.seat_number=seat_number
@@ -40,22 +43,22 @@ def create(response):
             s.occupy=False
         s.save()    
 
-
-        location = Location.objects.get(name='1F')
-        
         #count the available seats
+        location = Location.objects.get(name=floor)
         available_seat=0
         for seat in location.seat_set.all():
             if seat.occupy == False:
                 available_seat +=1
-        available_seat= str(available_seat)
-        
+
+        #send data to website
         layer = get_channel_layer()
         async_to_sync(layer.group_send)(
             'chat',
             {
-                'type': 'chat_message',
-                'message': available_seat
+                'type': 'available_seat',
+                'available_seat': str(available_seat),
+                'seat_number': seat_number,
+                'occupy': str(occupy)
             }
         )
     

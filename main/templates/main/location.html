@@ -13,47 +13,52 @@
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pause" viewBox="0 0 16 16">
       <path d="M6 3.5a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5zm4 0a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5z"/>
     </svg>
-    Available Seat: <span class="badge bg-primary", id="chat-log">0</span>    
+    Available Seat: <span class="badge bg-primary", id="available_seat">0</span>    
     </h3>
   </div>
   <div class="row" ,name="seat_display" , style="position: relative">
-    {% for seat in location.seat_set.all %}
-      {% if seat.occupy == True%}
-        <div class="card text-white bg-secondary mb-3" style="position: absolute; max-width: 4rem; top:{{seat.seat_position_y}}px; left:{{seat.seat_position_x}}px">
-          <div class="card-header">{{seat.seat_number}}</div>
-          <div class="card-body">
-            <h5 class="card-title"></h5>
-            <p class="card-text"></p>
+    <div id="card">
+      {% for seat in location.seat_set.all %}
+        {% if seat.occupy == True%}
+          <div id="{{seat.seat_number}}" class="card text-white bg-secondary mb-3" style="position: absolute; max-width: 4rem; top:{{seat.seat_position_y}}px; left:{{seat.seat_position_x}}px">
+            <div class="card-header">{{seat.seat_number}}</div>
+            <div class="card-body">
+            </div>
           </div>
-        </div>
-      
-      {% else %}
-        <div class="card text-white bg-primary mb-3" style="position: absolute; max-width: 4rem; top:{{seat.seat_position_y}}px; left:{{seat.seat_position_x}}px">
-          <div class="card-header">{{seat.seat_number}}</div>
-          <div class="card-body">
-            <h5 class="card-title"></h5>
-            <p class="card-text"></p>
+        
+        {% else %}
+          <div id="{{seat.seat_number}}" class="card text-white bg-primary mb-3" style="position: absolute; max-width: 4rem; top:{{seat.seat_position_y}}px; left:{{seat.seat_position_x}}px">
+            <div class="card-header">{{seat.seat_number}}</div>
+            <div class="card-body">
+            </div>
           </div>
-        </div>
-      {% endif %}
-  {% endfor %}
+        {% endif %}
+      {% endfor %}
+    </div>
   </div>
 
 <script>
-        const chatSocket = new WebSocket(
-            'ws://'
-            + window.location.host
-            + '/ws/chat/'
-        );
+    const chatSocket = new WebSocket(
+        'ws://'
+        + window.location.host
+        + '/ws/chat/'
+    );
 
-        chatSocket.onmessage = function(e) {
-            const data = JSON.parse(e.data);
-            document.querySelector('#chat-log').innerText =data.message;
-        };
+    chatSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        document.querySelector('#available_seat').innerText =data.available_seat;
+        if(data.occupy=="1"){
+            document.getElementById(data.seat_number).className = "card text-white bg-secondary mb-3"
+        }
+        else{
+            document.getElementById(data.seat_number).className = "card text-white bg-primary mb-3"
+        }
+    };
 
-        chatSocket.onclose = function(e) {
-            console.error('Chat socket closed unexpectedly');
-        };
+    chatSocket.onclose = function(e) {
+        console.error('Chat socket closed unexpectedly');
+    };
+
 </script>
 {% endblock content %}
 
