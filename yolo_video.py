@@ -1,6 +1,7 @@
 import sys
 import argparse
 import math
+import io
 #from yolo import YOLO
 
 import os
@@ -8,9 +9,19 @@ from tkinter import *
 from tkinter import filedialog, messagebox
 import random
 from tkinter import ttk
+
+# difference
+from skimage.metrics import structural_similarity
+import numpy as np
+
+# point inside polygon
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
+
+from numpy.lib.arraypad import pad
 from yolo import YOLO
 from yolo3.utils import rand
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 import requests
 import cv2
 import sqlite3
@@ -22,11 +33,29 @@ left_mouse_up_x = 0
 left_mouse_up_y = 0
 sole_rectangle = None
 
-# store all bounding box select by user
-'''
-bounding_box_list = ["file_type", "seat_name", point1, point2, point3, point4, "location", "camera_name"]
-'''
+# store all seats' bounding box select by user
+# bounding_box_list = ["file_type", "seat_name", point1, point2, point3, point4, "location", "camera_name", "original_talbe"]
 bounding_box_list = []
+BBL_FILE_TYPE_INDEX = 0
+BBL_SEAT_NAME_INDEX = 1
+BBL_PT1_INDEX = 2
+BBL_PT2_INDEX = 3
+BBL_PT3_INDEX = 4
+BBL_PT4_INDEX = 5
+BBL_LOCATION_INDEX = 6
+BBL_CAM_NAME_INDEX = 7
+BBL_ORIGINAL_T_INDEX = 8
+
+#store all large table select by user
+#large_table_list = ["table_name", point1, point2, point3, point4, <image PIL format>]
+large_table_list = []
+LTL_TABLE_NAME_INDEX = 0
+LTL_PT1_INDEX = 1
+LTL_PT2_INDEX = 2
+LTL_PT3_INDEX = 3
+LTL_PT4_INDEX = 4
+LTL_IMAGE_INDEX = 5
+
 
 #store text when display all bounding box
 bounding_box_text = []
@@ -43,16 +72,104 @@ postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1","camera": "0"}
 #database path
 DATABASE_PATH = "database/bounding_box.db"
 TABLE_NAME = "seats_4point"
-TABLE_XY_NAME = "seats_4point_xy"
+TABLE_XY_NAME = "seats"
+TABLE = "large_table"
 
 #file types
 file_types = [
     "seat", "table"
 ]
 
+class Object_detect():
+    def __init__(self, video_path:str):
+        self.video_path = video_path
+        self.EROSION_FACTOR = 3
+
+    def PIL2CV(self, image):  
+        img = cv2.cvtColor(np.asarray(image),cv2.COLOR_RGB2BGR)
+        return img
+
+    def CV2PIL(self, image):
+        img = Image.fromarray(cv2.cvtColor(image,cv2.COLOR_BGR2RGB))  
+        return img
+
+    def difference(self, before, after):
+        '''
+        check the difference between two image and return the object coordinate
+        '''
+        # Convert images to grayscale
+        before_gray = cv2.cvtColor(before, cv2.COLOR_BGR2GRAY)
+        after_gray = cv2.cvtColor(after, cv2.COLOR_BGR2GRAY)
+
+        # Compute SSIM between two images
+        (score, diff) = structural_similarity(before_gray, after_gray, full=True)
+        print("Image similarity", score)
+
+        # The diff image contains the actual image differences between the two images
+        # and is represented as a floating point data type in the range [0,1] 
+        # so we must convert the array to 8-bit unsigned integers in the range
+        # [0,255] before we can use it with OpenCV
+        diff = (diff * 255).astype("uint8")
+
+        # Threshold the difference image, followed by finding contours to
+        # obtain the regions of the two input images that differ
+
+        #? cv2.THRESH_OTSU: use OTSU algorithm to choose the optimal threshold value
+        thresh = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+
+
+        #? cv2.CHAIN_APPROX_SIMPLE代表壓縮取回的Contour像素點，只取長寬及對角線的end points，而不傳回所有的點，如此可節省記憶體使用並加快速度。
+        #? CV_RETR_EXTERNAL，則表示只取外層的Contour（如果有其它Contour包在內部）。
+        contours = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = contours[0] if len(contours) == 2 else contours[1]
+
+        temp =[]
+        for c in contours:
+            area = cv2.contourArea(c)
+            temp.append(area)
+
+        # draw contours area. saturation and size is proportional
+        thresh_mask = np.zeros(before.shape, dtype='uint8')
+        for c in contours:
+            area = cv2.contourArea(c)
+            cv2.drawContours(thresh_mask, [c], 0, (0,(area/max(temp))*255,0), -1)
+
+        thresh_mask_gray = cv2.cvtColor(thresh_mask, cv2.COLOR_BGR2GRAY)
+        thresh_mask_gray = cv2.threshold(thresh_mask_gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+
+        # Remove spikes
+        kernel = np.ones((5,5), np.uint8)
+        thresh_mask_gray = cv2.bitwise_not(thresh_mask_gray)
+        thresh_mask_gray = cv2.erode(thresh_mask_gray, kernel, iterations=self.EROSION_FACTOR)
+
+        #? find lowest point to identify position
+        thresh_mask_gray_cnt = cv2.findContours(thresh_mask_gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
+
+        #find lowest point to decide where the object is
+        object_position = []
+        for cnt in thresh_mask_gray_cnt:
+            object_position.append(min(cnt[:][:][0]))
+            print(min(cnt[:][:][0])) 
+
+        '''cv2.namedWindow("thresh_mask", cv2.WINDOW_NORMAL)
+        cv2.imshow('thresh_mask',thresh_mask)
+        cv2.namedWindow("thresh_mask_gray", cv2.WINDOW_NORMAL)
+        cv2.imshow('thresh_mask_gray',thresh_mask_gray)
+        cv2.waitKey(0)'''
+
+        return object_position
+
+    def Pts_in_polygon(self, point:tuple or list, polygon_points:list or tuple):
+        pts = Point(point[0], point[1])
+        polygon = Polygon(polygon_points)
+        print(polygon.contains(pts))
+        
+        return polygon.contains(pts) #Ture or False
+
 class yolo_window():
     def __init__(self):
         #self.yolo = YOLO()
+        self.object = Object_detect('none')
 
         yolo_win = Toplevel()
         yolo_win.title("YOLO image detection")
@@ -71,6 +188,20 @@ class yolo_window():
         if bounding_box_list == []:
             messagebox.showerror("Error", "Bounding Box is Empty")
             yolo_win.destroy()
+        else:
+            for table in large_table_list:
+                img = table[LTL_IMAGE_INDEX]
+                img.show()
+
+            #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            croped = crop_polygon('test_image/diff2.jpg', (large_table_list[0][1], large_table_list[0][2], large_table_list[0][3], large_table_list[0][4]))
+            croped.show()
+            croped = self.object.PIL2CV(croped)
+            img_before = self.object.PIL2CV(large_table_list[0][LTL_IMAGE_INDEX])
+            objects = self.object.difference(img_before, croped)
+            print("objects" + str(objects))
+            self.object.Pts_in_polygon(objects[0], [bounding_box_list[0][BBL_PT1_INDEX], bounding_box_list[0][BBL_PT2_INDEX],bounding_box_list[0][BBL_PT3_INDEX],bounding_box_list[0][BBL_PT4_INDEX]])
+
             
     # TODO new function to list yolo detect result
     #! need new crop function!!!!!!!!
@@ -91,19 +222,26 @@ class yolo_window():
                     #一秒
                     if j % fps == 0:
                         image=Image.fromarray(frame)
-                        image = image.resize((1200, 600))
-                        for i in range(len(bounding_box_list)):
+
+                        #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                        croped = crop_polygon('test_image/diff1.jpg', [large_table_list[1],large_table_list[2],large_table_list[3],large_table_list[4]])
+                        croped.show()
+                        objects = self.object.difference(large_table_list[LTL_IMAGE_INDEX], croped)
+                        print("objects" + str(objects))
+                        self.object.Pts_in_polygon(objects[0], [bounding_box_list[BBL_PT1_INDEX], bounding_box_list[BBL_PT2_INDEX],bounding_box_list[BBL_PT3_INDEX],bounding_box_list[BBL_PT4_INDEX]])
+
+                        '''for i in range(len(bounding_box_list)):
                             img=image.crop((bounding_box_list[i][1],bounding_box_list[i][2],bounding_box_list[i][3],bounding_box_list[i][4]))
                             r_image, people_num = self.yolo.detect_image(img)
                             bounding_box_list[i][5]=people_num
                             
-                            postdata_toserver["seat"]=bounding_box_list[i][0]
-                            postdata_toserver["location"]=bounding_box_list[i][6]
-                            postdata_toserver["camera"]=bounding_box_list[i][7]
+                            postdata_toserver["seat"]=bounding_box_list[i][BBL_SEAT_NAME_INDEX]
+                            postdata_toserver["location"]=bounding_box_list[i][BBL_LOCATION_INDEX]
+                            postdata_toserver["camera"]=bounding_box_list[i][BBL_CAM_NAME_INDEX]
                             postdata_toserver["occupy"]=str(people_num)
-                            r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
+                            r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)'''
                             
-            yolo.close_session()
+            self.yolo.close_session()
 
     def ok_event(self): 
         win.destroy()
@@ -134,6 +272,41 @@ class DB_4point_xy():
             camera_name text
             )""")
         '''
+
+        '''# store undivided table
+        self.c.execute("""CREATE TABLE large_table(
+            file_name text,
+            file_type text,
+            table_name text PRIMARY KEY,
+            point1_x integer,
+            point1_y integer,
+            point2_x integer,
+            point2_y integer,
+            point3_x integer,
+            point3_y integer,
+            point4_x integer,
+            point4_y integer,
+            empty_table_img blob
+            )""")'''
+
+        '''self.c.execute("""CREATE TABLE seats(
+            file_name text,
+            file_type text,
+            seat_name text,
+            point1_x integer,
+            point1_y integer,
+            point2_x integer,
+            point2_y integer,
+            point3_x integer,
+            point3_y integer,
+            point4_x integer,
+            point4_y integer,
+            location text,
+            camera_name text,
+            original_table text,
+            FOREIGN KEY(original_table) REFERENCES large_table(table_name)
+            )""")'''
+
         # commit changes
         self.conn.commit()
         # close connection
@@ -145,7 +318,7 @@ class DB_4point_xy():
 
         self.c.execute("SELECT * FROM " + table_name + " WHERE file_name = '" + file_name + "'")
         records = self.c.fetchall()
-        print(records)
+        #print(records)
 
         self.conn.commit()
         self.conn.close()
@@ -153,11 +326,12 @@ class DB_4point_xy():
         return records
     
     # add new file to database
-    def insert(self, table_name:str, file_name:str, file_type:str, seat_name:str, pt1:list, pt2:list, pt3:list, pt4:list, location:str, camera_name:str):
+    def seats_insert(self, table_name:str, file_name:str, file_type:str, seat_name:str, pt1:list, pt2:list, pt3:list, pt4:list, location:str, camera_name:str, original_table:str):
         self.conn = sqlite3.connect(DATABASE_PATH)
         self.c = self.conn.cursor()
+
         #Insert into table
-        self.c.execute("INSERT INTO "+ table_name +" VALUES (:file_name, :file_type,:seat_name, :point1_x, :point1_y, :point2_x, :point2_y, :point3_x, :point3_y, :point4_x, :point4_y, :location, :camera_name)",
+        self.c.execute("INSERT INTO "+ table_name +" VALUES (:file_name, :file_type,:seat_name, :point1_x, :point1_y, :point2_x, :point2_y, :point3_x, :point3_y, :point4_x, :point4_y, :location, :camera_name, :original_table)",
                 {
                     'file_name': file_name,
                     'file_type': file_type,
@@ -171,7 +345,33 @@ class DB_4point_xy():
                     'point4_x':pt4[0],
                     'point4_y':pt4[1],
                     'location': location,
-                    'camera_name': camera_name
+                    'camera_name': camera_name,
+                    'original_table': original_table
+                })
+
+        self.conn.commit()
+        self.conn.close()
+
+    def large_table_insert(self, table_name:str, file_name:str, file_type:str, large_table_name:str, pt1:list, pt2:list, pt3:list, pt4:list, empty_table_img):
+        self.conn = sqlite3.connect(DATABASE_PATH)
+        self.c = self.conn.cursor()
+
+
+        #Insert into table
+        self.c.execute("INSERT INTO "+ table_name +" VALUES (:file_name, :file_type, :table_name, :point1_x, :point1_y, :point2_x, :point2_y, :point3_x, :point3_y, :point4_x, :point4_y, :empty_table_img)",
+                {
+                    'file_name': file_name,
+                    'file_type': file_type,
+                    'table_name': large_table_name,
+                    'point1_x':pt1[0],
+                    'point1_y':pt1[1],
+                    'point2_x':pt2[0],
+                    'point2_y':pt2[1],
+                    'point3_x':pt3[0],
+                    'point3_y':pt3[1],
+                    'point4_x':pt4[0],
+                    'point4_y':pt4[1],
+                    'empty_table_img': empty_table_img
                 })
 
         self.conn.commit()
@@ -183,7 +383,7 @@ class DB_4point_xy():
 
         self.c.execute("SELECT * FROM " + table_name)
         records = self.c.fetchall()
-        print(records)
+        #print(records)
 
         self.conn.commit()
         self.conn.close()
@@ -201,10 +401,12 @@ class DB_4point_xy():
         self.conn.close()
 
 class database_window():
-    def __init__(self):
+    def __init__(self, tool):
         self.db_window=Toplevel()
         self.db_window.title("Database")
         self.db_window.geometry("500x400")
+
+        self.tool = tool
 
         self.file_list= LabelFrame(self.db_window, text="Files")
         self.file_list.grid(row=1, column= 1, padx=(0,10), pady=10)
@@ -317,47 +519,97 @@ class database_window():
             messagebox.showerror(title="No data!",message="No bounding box") 
             self.db_window.focus()  
         else:
-            for box in bounding_box_list:
-                # bounding_box_list = ["file_type", "seat_name", point1, point2, point3, point4, "location", "camera_name"]
-                db_win.insert(TABLE_XY_NAME, file_name, box[0], box[1], box[2], box[3], box[4], box[5],box[6],box[7])
+            for table in large_table_list:
+                #croped image
+                img = table[LTL_IMAGE_INDEX]
+                img.show() 
+                #convert image to blob format
+                stream = io.BytesIO()
+                img.save(stream, format="JPEG")
+                imagebytes = stream.getvalue()
 
+                file_type ="original_table"
+                db_win.large_table_insert(TABLE, file_name, file_type, 
+                                            table[LTL_TABLE_NAME_INDEX], 
+                                            table[LTL_PT1_INDEX], 
+                                            table[LTL_PT2_INDEX], 
+                                            table[LTL_PT3_INDEX], 
+                                            table[LTL_PT4_INDEX], 
+                                            imagebytes)
+
+            for box in bounding_box_list:
+                # bounding_box_list = ["file_type", "seat_name", point1, point2, point3, point4, "location", "camera_name", "original_talbe"]
+                db_win.seats_insert(TABLE_XY_NAME, 
+                                    file_name, 
+                                    box[BBL_FILE_TYPE_INDEX],
+                                    box[BBL_SEAT_NAME_INDEX], 
+                                    box[BBL_PT1_INDEX], 
+                                    box[BBL_PT2_INDEX],
+                                    box[BBL_PT3_INDEX], 
+                                    box[BBL_PT4_INDEX],
+                                    box[BBL_LOCATION_INDEX],
+                                    box[BBL_CAM_NAME_INDEX], 
+                                    box[BBL_ORIGINAL_T_INDEX])
+          
     #load the data in database to bounding_box_list
     def load(self, file_name):
         print("--LOAD--")
         db_win = DB_4point_xy()
         
         records = db_win.select(TABLE_XY_NAME, file_name)
-        bounding_box_listbox.delete(0,'end')
+        if records == None:
+            messagebox.showwarning("No Data", "No Data")
+        else:
+            bounding_box_listbox.delete(0,'end')
 
-        global bounding_box_list
-        bounding_box_list = []
-        for record in records:
-            # bounding_box_list = ["file_type", "seat_name", point1, point2, point3, point4, "location", "camera_name"]
-            bounding_box_list.append([])
-            bounding_box_list[(len(bounding_box_list)-1)].append(record[1]) #file type
-            bounding_box_list[(len(bounding_box_list)-1)].append(record[2]) #seat name
-            bounding_box_list[(len(bounding_box_list)-1)].append((record[3],record[4])) #pt1
-            bounding_box_list[(len(bounding_box_list)-1)].append((record[5],record[6])) #pt2
-            bounding_box_list[(len(bounding_box_list)-1)].append((record[7],record[8])) #pt1
-            bounding_box_list[(len(bounding_box_list)-1)].append((record[9],record[10])) #pt2
-            bounding_box_list[(len(bounding_box_list)-1)].append(record[11]) #location
-            bounding_box_list[(len(bounding_box_list)-1)].append(record[12]) #camera name
+            global bounding_box_list
+            bounding_box_list = []
+            for record in records:
+                # bounding_box_list = ["file_type", "seat_name", point1, point2, point3, point4, "location", "camera_name"]
+                bounding_box_list.append([])
+                bounding_box_list[(len(bounding_box_list)-1)].append(record[1]) #file type
+                bounding_box_list[(len(bounding_box_list)-1)].append(record[2]) #seat name
+                bounding_box_list[(len(bounding_box_list)-1)].append((record[3],record[4])) #pt1
+                bounding_box_list[(len(bounding_box_list)-1)].append((record[5],record[6])) #pt2
+                bounding_box_list[(len(bounding_box_list)-1)].append((record[7],record[8])) #pt1
+                bounding_box_list[(len(bounding_box_list)-1)].append((record[9],record[10])) #pt2
+                bounding_box_list[(len(bounding_box_list)-1)].append(record[11]) #location
+                bounding_box_list[(len(bounding_box_list)-1)].append(record[12]) #camera name
+                bounding_box_list[(len(bounding_box_list)-1)].append(record[13]) #original table
 
-        #update listbox
-        tool = Tool()
-        tool.listbox_update()
+            # set default value in Entry
+            seat_number_entry.delete(0,'end')
+            seat_number_entry.insert(0, str(int(record[2]) + 1))
+            floor_entry.delete(0,'end')
+            floor_entry.insert(0, str(record[11]))
+            camera_entry.delete(0,'end')
+            camera_entry.insert(0, str(record[12]))
 
-        #print(bounding_box_list)
+            table_records = db_win.select(TABLE, file_name)
+            if table_records == None:
+                messagebox.showwarning("No Data", "No Data")
+            else:
+                global large_table_list
+                large_table_list = []
+                for table_record in table_records:
+                    large_table_list.append([])
+                    large_table_list[-1].append(table_record[2]) # talbe name
+                    large_table_list[-1].append((table_record[3],table_record[4])) # pt1
+                    large_table_list[-1].append((table_record[5],table_record[6])) # pt2
+                    large_table_list[-1].append((table_record[7],table_record[8])) # pt3
+                    large_table_list[-1].append((table_record[9],table_record[10])) # pt4
 
-        # set default value in Entry
-        seat_number_entry.delete(0,'end')
-        seat_number_entry.insert(0, str(int(record[2]) + 1))
-        floor_entry.delete(0,'end')
-        floor_entry.insert(0, str(record[11]))
-        camera_entry.delete(0,'end')
-        camera_entry.insert(0, str(record[12]))
-        self.db_window.destroy()
-        win.focus()
+                    # convert bytes to image
+                    imageStream = io.BytesIO(table_record[11])
+                    imageFile = Image.open(imageStream)
+                    large_table_list[-1].append(imageFile)
+
+
+            #update listbox
+            self.tool.listbox_update()
+            self.tool.clean_canvas()        
+            self.db_window.destroy()
+            win.focus()
 
 
     #delete bounding_box_list in database
@@ -405,6 +657,8 @@ class Tool():
             # disable widget in divider_frame
             for child in divider_frame.winfo_children():
                 child.configure(state='disable')
+            for child in entry_frame.winfo_children():
+                child.configure(state='normal')
 
             # recreate button to dispaly DISABLE
             rect_select_btn = Button(select_tool_frame, text="Rect", state= DISABLED, 
@@ -435,6 +689,9 @@ class Tool():
             # enable widget in divider_frame
             for child in divider_frame.winfo_children():
                 child.configure(state='normal')
+            #enable widget in entry frame
+            for child in entry_frame.winfo_children():
+                child.configure(state='normal')
 
             # recreate button to dispaly DISABLE
             rect_select_btn = Button(select_tool_frame, text="Rect", state= NORMAL,
@@ -458,6 +715,13 @@ class Tool():
             self.canvas.bind('<Button-1>', self.point_mouse_down)
 
         elif tool.tool == "move":
+            # disable widget in divider_frame
+            for child in divider_frame.winfo_children():
+                child.configure(state='disable')
+            #disable widget in entry frame
+            for child in entry_frame.winfo_children():
+                child.configure(state='disable')
+
             rect_select_btn = Button(select_tool_frame, text="Rect", state= NORMAL,
                                 command= lambda: self.change_tool("rect"), width=5)
             rect_select_btn.grid(row=0, column=0,padx= 10,pady= 5)
@@ -479,10 +743,22 @@ class Tool():
             self.canvas.bind('<ButtonPress-1>', self.zoom.move_from)
             self.canvas.bind('<B1-Motion>',     self.zoom.move_to)
 
+    def LargeTable(self):
+        global large_table_list
+        large_table_list.append([])
+        large_table_list[-1].append(original_table_entry.get())#table name
+        large_table_list[-1].append(point_bounding_box_list[0]) #pt1
+        large_table_list[-1].append(point_bounding_box_list[1]) #pt2
+        large_table_list[-1].append(point_bounding_box_list[2])#pt3
+        large_table_list[-1].append(point_bounding_box_list[3])#pt4
+        large_table_list[-1].append(crop_polygon(img_path, (point_bounding_box_list[0], point_bounding_box_list[1], point_bounding_box_list[2], point_bounding_box_list[3])))
+        print(large_table_list)
+
+
     # TODO: divide selected aera
     def divide(self):
         print("--DIVIDE--")
-        if divider_entry.get() == '':
+        if divider_entry.get() == '' or original_table_entry.get == '':
             messagebox.showerror('Error', 'Please input divider value')
         elif len(point_bounding_box_list) != 4:
             messagebox.showerror('Error', 'Bounding box error')
@@ -506,7 +782,7 @@ class Tool():
             sole_polygon.append(self.canvas.create_polygon(self.side1[seat_divide_cnt], self.side1[seat_divide_cnt+1], self.side2[seat_divide_cnt+1], self.side2[seat_divide_cnt],outline='yellow' , width= 5, fill=''))
             print(len(sole_polygon))
 
-    # TODO: devide aear into specific seats
+    # TODO: devide area into specific seats
     def divide_seat(self):
         print("--DIVIDE SEAT--")
         global seat_divide_cnt, sole_polygon
@@ -529,6 +805,8 @@ class Tool():
                 bounding_box_list[-1].append((self.side2[seat_divide_cnt][0],self.side2[seat_divide_cnt][1]))
                 bounding_box_list[-1].append(floor_entry.get())
                 bounding_box_list[-1].append(camera_entry.get())
+                bounding_box_list[-1].append(original_table_entry.get())
+
 
                 #update listbox
                 self.listbox_update()
@@ -551,6 +829,10 @@ class Tool():
                 # all seat value input is complete
                 else:
                     global point_bounding_box_list
+
+                    #? store undivided table coordinate
+                    self.LargeTable()
+
                     seat_divide_cnt = 0
                     point_bounding_box_list = []
                     # clean canvas
@@ -559,6 +841,9 @@ class Tool():
                     # clean side1 side2
                     self.side1 = []
                     self.side1 = [] 
+
+                    #clean large table 
+                    original_table_entry.delete(0,'end')
             #print("Seat cnt: " + str(seat_divide_cnt))
         
     def divide_point(self):
@@ -636,17 +921,17 @@ class Tool():
         if point_cnt == 0:
             point_bounding_box_list = []
             sole_polygon_list = []
-            point_bounding_box_list.append((event.x,event.y))
+            point_bounding_box_list.append((event.x + self.canvas.canvasx(0), event.y + self.canvas.canvasy(0)))
             #draw polygon
-            sole_polygon_list.append(event.x)
-            sole_polygon_list.append(event.y)
+            sole_polygon_list.append(event.x +self.canvas.canvasx(0))
+            sole_polygon_list.append(event.y +self.canvas.canvasy(0))
             point_cnt += 1
 
         elif point_cnt < 4:
-            point_bounding_box_list.append((event.x,event.y))
+            point_bounding_box_list.append((event.x + self.canvas.canvasx(0), event.y + self.canvas.canvasy(0)))
             #draw polygon
-            sole_polygon_list.append(event.x)
-            sole_polygon_list.append(event.y)
+            sole_polygon_list.append(event.x+self.canvas.canvasx(0))
+            sole_polygon_list.append(event.y+self.canvas.canvasy(0))
 
             if point_cnt == 3:
                 if sole_polygon is not None:
@@ -679,7 +964,7 @@ class Tool():
             messagebox.showerror("Error","Please Enter parameter")
         else:
             # store image coordinate
-            self.corp_img(img_path, 'one_corp.jpg', 
+            self.corp_img(self.canvas.image, 'one_corp.jpg', 
                         left_mouse_down_x+self.canvas.canvasx(0), 
                         left_mouse_down_y+self.canvas.canvasy(0),
                         left_mouse_up_x+self.canvas.canvasx(0), 
@@ -725,6 +1010,7 @@ class Tool():
         bounding_box_list[-1].append((max_x,min_y))
         bounding_box_list[-1].append(seat_floor)
         bounding_box_list[-1].append(camera_number)
+        bounding_box_list[-1].append(None)
 
         #update listbox
         self.listbox_update()
@@ -738,17 +1024,26 @@ class Tool():
         if sole_polygon == []:
             for box in bounding_box_list:
                 if box[0] == 'seat':
-                    sole_polygon.append(self.canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='red', fill=''))
+                    sole_polygon.append(self.canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='red', fill='', width=3))
                     #display text for bounding box
                     bounding_box_text.append(self.canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'red', anchor="nw", font=("Helvetica", 15)))
                     bounding_box_text.append(self.canvas.create_rectangle(self.canvas.bbox(bounding_box_text[-1]),fill="white"))
                 else:
-                    sole_polygon.append(self.canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='yellow', fill=''))
+                    sole_polygon.append(self.canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='blue', fill=''))
                     #display text for bounding box
                     bounding_box_text.append(self.canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'blue', anchor="nw", font=("Helvetica", 15)))
                     bounding_box_text.append(self.canvas.create_rectangle(self.canvas.bbox(bounding_box_text[-1]),fill="white"))
                 #move rectangle under the text
-                self.canvas.tag_lower(bounding_box_text[-1],bounding_box_text[-2])            
+                self.canvas.tag_lower(bounding_box_text[-1],bounding_box_text[-2])
+            for table in large_table_list:
+                sole_polygon.append(self.canvas.create_polygon(table[LTL_PT1_INDEX][0], table[LTL_PT1_INDEX][1], 
+                                                                table[LTL_PT2_INDEX][0], table[LTL_PT2_INDEX][1], 
+                                                                table[LTL_PT3_INDEX][0], table[LTL_PT3_INDEX][1], 
+                                                                table[LTL_PT4_INDEX][0], table[LTL_PT4_INDEX][1], 
+                                                                outline='black', fill=''))
+                bounding_box_text.append(self.canvas.create_text(table[LTL_PT2_INDEX][0], table[LTL_PT2_INDEX][1],  text=box[1], fill= 'black', anchor="nw", font=("Helvetica", 15)))
+                bounding_box_text.append(self.canvas.create_rectangle(self.canvas.bbox(bounding_box_text[-1]),fill="white"))
+                self.canvas.tag_lower(bounding_box_text[-1],bounding_box_text[-2])
         else:
             self.clean_canvas()
             
@@ -767,10 +1062,31 @@ class Tool():
         sole_rectangle =[]
 
     def listbox_update(self):
-        bounding_box_listbox.insert(0, "  file type   |    seat name")
+        bounding_box_listbox.insert(0, "  file type   |    seat name    |   original t")
         bounding_box_listbox.delete(1,'end')
         for box in bounding_box_list:
-            bounding_box_listbox.insert('end', "  "+ box[0] +"                    "+ box[1])
+            bounding_box_listbox.insert('end', "  "+ box[BBL_FILE_TYPE_INDEX] +"                    "+ box[BBL_SEAT_NAME_INDEX]+"                    "+box[BBL_ORIGINAL_T_INDEX])
+
+    def undo_event(self):
+        if len(bounding_box_list)<=0:
+            messagebox.showerror("Error", "Bounding box list is Empty")
+        else:
+            print("\n\n--UNDO--")
+            bounding_box_list.pop()
+            self.listbox_update()
+
+            # if no seat refer to last large table then pop it.
+            ifdel = False
+            for box in bounding_box_list:
+                if box[8] == large_table_list[-1][LTL_TABLE_NAME_INDEX]:
+                    ifdel=False
+                else:
+                    ifdel=True
+            if ifdel or bounding_box_list == []:
+                large_table_list.pop()
+            
+            print("bounding: " + str(bounding_box_list))
+            print("large_t: " + str(large_table_list))
 
 class AutoScrollbar(ttk.Scrollbar):
     ''' A scrollbar that hides itself if it's not needed.
@@ -851,15 +1167,31 @@ class Zoom_Advanced(ttk.Frame):
             
         self.canvas.lower(imageid)  # set image into background
         self.canvas.imagetk = imagetk  # keep an extra reference to prevent garbage-collection
-            
 
-def undo_event():
-    tool = Tool()
-    if len(bounding_box_list)>0:
-        bounding_box_list.pop()
-        tool.listbox_update()
-        print("--UNDO--")
-        print(bounding_box_list)
+
+def crop_polygon(img_path:str, point:list, **kwargs):
+    '''
+    crop the image with polygon mask. Background is Black.
+    PIL Image format
+    '''
+    print("--CROP POLYGON--")
+
+    kwarg = kwargs.get("image", None)
+    if kwarg != None:
+        image = kwarg
+    else:
+        image = Image.open(img_path)
+    xy = point
+    print("xy: " + str(xy))
+
+    mask = Image.new("L", image.size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.polygon(xy, fill=255, outline=None)
+    black =  Image.new("L", image.size, 0)
+    image_result = Image.composite(image, black, mask)
+    #image_result.show()
+
+    return image_result
 
 def openSetupImage(): #select an image to setup bounding box
     print("--OPEN IMAGE--")
@@ -867,8 +1199,8 @@ def openSetupImage(): #select an image to setup bounding box
     #img_path = filedialog.askopenfilename(initialdir="/", title="open an image", filetypes= ( ("all files", "*.*"), ("jpg files", "*.jpg") ))
     img_path = "test_image/diff2.jpg"
     image = Image.open(img_path)
-    #setup_image=image.resize((1200, 675))
-    #setup_img = ImageTk.PhotoImage(setup_image)
+    
+    return img_path
 
 if __name__ == '__main__':
 
@@ -904,7 +1236,7 @@ if __name__ == '__main__':
     #? ====== Frame ======
     
     #! +++++++++++++++++++++
-    img_path = "test_image/seat_angle1_ref.jpg"
+    img_path = "test_image/diff1.jpg"
     app = Zoom_Advanced(frame1, img_path)
 
     # set tool to rect tool
@@ -914,19 +1246,29 @@ if __name__ == '__main__':
     #? ============ frame 2 ===========
 
     #? ============ divider frame ===========
+    # foreign key
+    original_table_label = Label(divider_frame, text="Original \nTable ")
+    original_table_label.grid(row=0, column=0, pady=5, padx=5)
+    original_table_entry = Entry(divider_frame)
+    original_table_entry.grid(row=0,column=1)
+
+    # devide area into segments
     divider_label = Label(divider_frame, text= 'divide into:')
-    divider_label.grid(row=0, column=0, pady= 5)
+    divider_label.grid(row=1, column=0, pady= 5)
     divider_entry = Entry(divider_frame)
-    divider_entry.grid(row=0, column=1)
+    divider_entry.grid(row=1, column=1)
     divider_entry.insert(0,"1")
+
     divider_btn = Button(divider_frame, text="Done", command= tool.divide, height=5)
-    divider_btn.grid(row=0, column=2, padx=5, rowspan=2)
+    divider_btn.grid(row=1, column=2, padx=5, rowspan=2)
 
     image_cor_label = Label(divider_frame, text="Image \nCorrection:\n Offset")
-    image_cor_label.grid(row=1, column=0, pady= 5,padx=5)
+    image_cor_label.grid(row=2, column=0, pady= 5,padx=5)
     image_cor_entry = Entry(divider_frame)
-    image_cor_entry.grid(row=1, column=1)
+    image_cor_entry.grid(row=2, column=1)
     image_cor_entry.insert(0,"1.15")
+
+    
     #? ============ divider frame ===========
 
     #? ============ entry frame ===========
@@ -950,8 +1292,8 @@ if __name__ == '__main__':
 
     #bounding box list
     var = StringVar()
-    bounding_box_listbox = Listbox(entry_frame, listvariable=var)
-    bounding_box_listbox.grid(column=1, row=3, padx=10, pady=5, sticky=N)
+    bounding_box_listbox = Listbox(entry_frame, listvariable=var,width=30)
+    bounding_box_listbox.grid(column=0, row=3, padx=10, pady=5, columnspan=2, sticky=N)
     
     #Location label and Entry
     floor_label = Label(entry_frame,text = "Floor")
@@ -970,11 +1312,11 @@ if __name__ == '__main__':
     #? ============ entry frame ===========
 
     # undo button to clear last bounding box
-    undobutton = Button(frame2, text='Undo', command=undo_event, width=15)
+    undobutton = Button(frame2, text='Undo', command=tool.undo_event, width=15)
     undobutton.grid(row=6, column=0, columnspan=3)
 
     #create database button
-    db_button = Button(frame2, text="Database", command=database_window, width=15)
+    db_button = Button(frame2, text="Database", command=lambda: database_window(tool), width=15)
     db_button.grid(row=7, column=0, columnspan=3,pady=(30,0))
 
     #proceed to YOLO
@@ -987,16 +1329,10 @@ if __name__ == '__main__':
     #select a image to setup bounding box
     #openSetupImage() 
     
-    
-    '''
-    #bulit canvas
-    setup_image_x, setup_image_y = setup_image.size
-    canvas = Canvas(frame1, width=setup_image_x, height=setup_image_y, bg='pink')
-    i = canvas.create_image(0, 0, anchor='nw', image=setup_img)
-    canvas.pack()
-    '''
-    tool.change_tool("move")
+    tool.change_tool("point")
+    original_table_entry.insert(0,"1")
+    seat_number_entry.insert(0,"1")
+    floor_entry.insert(0,"1")
+    camera_entry.insert(0,"1")
 
     win.mainloop()
-    
-   
