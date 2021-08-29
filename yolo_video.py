@@ -11,12 +11,12 @@ import random
 from tkinter import ttk
 
 # difference
-from skimage.metrics import structural_similarity
+#from skimage.metrics import structural_similarity
 import numpy as np
 
 # point inside polygon
-from shapely.geometry import Point
-from shapely.geometry.polygon import Polygon
+#from shapely.geometry import Point
+#from shapely.geometry.polygon import Polygon
 
 from numpy.lib.arraypad import pad
 from yolo import YOLO
@@ -69,6 +69,7 @@ sole_polygon_list = [] # for draw polygon
 
 postdata_toserver = {"seat": "0", "location": "1F", "occupy": "1","camera": "0"}
 
+
 #database path
 DATABASE_PATH = "database/bounding_box.db"
 TABLE_NAME = "seats_4point"
@@ -102,7 +103,7 @@ class Object_detect():
         after_gray = cv2.cvtColor(after, cv2.COLOR_BGR2GRAY)
 
         # Compute SSIM between two images
-        (score, diff) = structural_similarity(before_gray, after_gray, full=True)
+        #(score, diff) = structural_similarity(before_gray, after_gray, full=True)
         print("Image similarity", score)
 
         # The diff image contains the actual image differences between the two images
@@ -263,7 +264,7 @@ class yolo_window():
 
                         '''for i in range(len(bounding_box_list)):
                             img=image.crop((bounding_box_list[i][1],bounding_box_list[i][2],bounding_box_list[i][3],bounding_box_list[i][4]))
-                            r_image, people_num = self.yolo.detect_image(img)
+                            r_image, people_num = yolo.detect_image(img)
                             bounding_box_list[i][5]=people_num
                             
                             postdata_toserver["seat"]=bounding_box_list[i][BBL_SEAT_NAME_INDEX]
@@ -952,21 +953,20 @@ class Tool():
         global point_cnt, sole_polygon, point_bounding_box_list, sole_polygon_list
         seat_name=seat_number_entry.get()
         
-
         if point_cnt == 0:
             point_bounding_box_list = []
             sole_polygon_list = []
-            point_bounding_box_list.append((event.x + self.canvas.canvasx(0), event.y + self.canvas.canvasy(0)))
+            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0))/app.zoom, event.y + (event.y+self.canvas.canvasy(0))/app.zoom))
             #draw polygon
-            sole_polygon_list.append(event.x +self.canvas.canvasx(0))
-            sole_polygon_list.append(event.y +self.canvas.canvasy(0))
+            sole_polygon_list.append((event.x+self.canvas.canvasx(0))/app.zoom)
+            sole_polygon_list.append((event.y+self.canvas.canvasy(0))/app.zoom)
             point_cnt += 1
 
         elif point_cnt < 4:
-            point_bounding_box_list.append((event.x + self.canvas.canvasx(0), event.y + self.canvas.canvasy(0)))
+            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0))/app.zoom, event.y + (event.y+self.canvas.canvasy(0))/app.zoom))
             #draw polygon
-            sole_polygon_list.append(event.x+self.canvas.canvasx(0))
-            sole_polygon_list.append(event.y+self.canvas.canvasy(0))
+            sole_polygon_list.append((event.x+self.canvas.canvasx(0))/app.zoom)
+            sole_polygon_list.append((event.y+self.canvas.canvasy(0))/app.zoom)
 
             if point_cnt == 3:
                 if sole_polygon is not None:
@@ -1000,10 +1000,10 @@ class Tool():
         else:
             # store image coordinate
             self.corp_img(self.canvas.image, 'one_corp.jpg', 
-                        left_mouse_down_x+self.canvas.canvasx(0), 
-                        left_mouse_down_y+self.canvas.canvasy(0),
-                        left_mouse_up_x+self.canvas.canvasx(0), 
-                        left_mouse_up_y+self.canvas.canvasy(0))
+                        (left_mouse_down_x+self.canvas.canvasx(0))/app.zoom, 
+                        (left_mouse_down_y+self.canvas.canvasy(0))/app.zoom,
+                        (left_mouse_up_x+self.canvas.canvasx(0))/app.zoom, 
+                        (left_mouse_up_y+self.canvas.canvasy(0))/app.zoom)
 
             #seat number + 1 automatically
             seat_number_entry.delete(0,'end')
@@ -1017,10 +1017,10 @@ class Tool():
         moving_mouse_y = event.y
         if sole_rectangle is not None:
             self.clean_canvas() # 删除前一个矩形
-        sole_rectangle = self.canvas.create_rectangle(left_mouse_down_x+self.canvas.canvasx(0),
-                                                    left_mouse_down_y+self.canvas.canvasy(0), 
-                                                    moving_mouse_x+ self.canvas.canvasx(0),
-                                                    moving_mouse_y+self.canvas.canvasy(0), 
+        sole_rectangle = self.canvas.create_rectangle((left_mouse_down_x+self.canvas.canvasx(0)),
+                                                    (left_mouse_down_y+self.canvas.canvasy(0)), 
+                                                    (moving_mouse_x+ self.canvas.canvasx(0)),
+                                                    (moving_mouse_y+self.canvas.canvasy(0)), 
                                                     outline='red')
 
     def corp_img(self,source_path, save_path, x_begin, y_begin, x_end, y_end):
@@ -1161,6 +1161,7 @@ class Zoom_Advanced(ttk.Frame):
         self.master.rowconfigure(0, weight=1)
         self.master.columnconfigure(0, weight=1)
         
+        self.zoom=1
         self.image = Image.open(path)  # open image
         self.width, self.height = self.image.size
         # Put image into container rectangle and use it to set proper coordinates to the image
@@ -1185,10 +1186,20 @@ class Zoom_Advanced(ttk.Frame):
         ''' Drag (move) canvas to the new position '''
         self.canvas.scan_dragto(event.x, event.y, gain=1)
         self.show_image()  # redraw the image
+        
+
+    def zoom_in(self):
+        self.zoom = self.zoom*1.3
+        self.show_image()
+
+    def zoom_out(self):
+        self.zoom = self.zoom/1.3
+        self.show_image()
 
     def show_image(self, event=None):
         ''' Show image on the Canvas '''
-        
+        self.container = self.canvas.create_rectangle(0, 0, self.width*self.zoom, self.height*self.zoom, width=0)
+        self.newimage=self.image.resize((int(self.width*self.zoom), int(self.height*self.zoom)))
         bbox1 = self.canvas.bbox(self.container)  # get image area
         self.canvas.configure(scrollregion=bbox1)  # set scroll region
         bbox2 = (self.canvas.canvasx(0)+1,  # get visible area of the canvas
@@ -1197,7 +1208,7 @@ class Zoom_Advanced(ttk.Frame):
                  self.canvas.canvasy(self.canvas.winfo_height())+1)
 
         print(bbox2)
-        imagetk = ImageTk.PhotoImage(self.image)
+        imagetk = ImageTk.PhotoImage(self.newimage)
         imageid = self.canvas.create_image(0, 0, anchor='nw', image=imagetk)
             
         self.canvas.lower(imageid)  # set image into background
@@ -1259,6 +1270,8 @@ if __name__ == '__main__':
     frame1.grid(row=0,column=0)
     frame2=Frame(win,bg='yellow',bd=20)
     frame2.grid(row=0,column=1)
+    frame3=Frame(win,bg='blue',bd=10)
+    frame3.grid(row=1,column=0)
     # select tool frame
     select_tool_frame = LabelFrame(frame2, text="Select Tool")
     select_tool_frame.grid(row=0, column=0, columnspan=2, pady=10, sticky='W')
@@ -1269,7 +1282,7 @@ if __name__ == '__main__':
     entry_frame = LabelFrame(frame2)
     entry_frame.grid(row=3, column=0, columnspan=2, pady=10, sticky='W')
     #? ====== Frame ======
-    
+
     #! +++++++++++++++++++++
     img_path = "test_image/diff1.jpg"
     app = Zoom_Advanced(frame1, img_path)
@@ -1359,7 +1372,13 @@ if __name__ == '__main__':
     yolo_button.grid(row=8, column=0, columnspan=3,pady=10)
     #? ============ frame 2 ===========
 
-    
+    #? ============ frame 3 ===========
+    zoom_in_button = Button(frame3, text='+', command=app.zoom_in, width=15)
+    zoom_in_button.grid(row=0, column=0, pady=10)
+
+    zoom_out_button = Button(frame3, text='-', command=app.zoom_out, width=15)
+    zoom_out_button.grid(row=0, column=1, pady=10)
+    #? ============ frame 3 ===========
 
     #select a image to setup bounding box
     #openSetupImage() 
