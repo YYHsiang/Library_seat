@@ -115,8 +115,9 @@ class Object_detect():
         # obtain the regions of the two input images that differ
 
         #? cv2.THRESH_OTSU: use OTSU algorithm to choose the optimal threshold value
-        thresh = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
-
+        #blur_diff = cv2.medianBlur(diff, 5)
+        #thresh = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+        thresh = cv2.threshold(diff, 210, 255, cv2.THRESH_BINARY_INV)[1]
 
         #? cv2.CHAIN_APPROX_SIMPLE代表壓縮取回的Contour像素點，只取長寬及對角線的end points，而不傳回所有的點，如此可節省記憶體使用並加快速度。
         #? CV_RETR_EXTERNAL，則表示只取外層的Contour（如果有其它Contour包在內部）。
@@ -148,14 +149,26 @@ class Object_detect():
         #find lowest point to decide where the object is
         object_position = []
         for cnt in thresh_mask_gray_cnt:
+            x,y,w,h = cv2.boundingRect(cnt)
+            cv2.rectangle(after, (x, y), (x + w, y + h), (36,255,12), 2)
             object_position.append(min(cnt[:][:][0]))
             print(min(cnt[:][:][0])) 
 
-        '''cv2.namedWindow("thresh_mask", cv2.WINDOW_NORMAL)
-        cv2.imshow('thresh_mask',thresh_mask)
-        cv2.namedWindow("thresh_mask_gray", cv2.WINDOW_NORMAL)
-        cv2.imshow('thresh_mask_gray',thresh_mask_gray)
-        cv2.waitKey(0)'''
+        cv2.namedWindow("after", cv2.WINDOW_NORMAL)
+        cv2.imshow('after',after)
+        #cv2.namedWindow("blur_diff", cv2.WINDOW_NORMAL)
+        #cv2.imshow('blur_diff',blur_diff)
+        cv2.namedWindow("diff", cv2.WINDOW_NORMAL)
+        cv2.imshow('diff',diff)
+        cv2.namedWindow("thresh", cv2.WINDOW_NORMAL)
+        cv2.imshow('thresh',thresh)
+        #cv2.namedWindow("thresh_mask", cv2.WINDOW_NORMAL)
+        #cv2.imshow('thresh_mask',thresh_mask)
+        #cv2.namedWindow("thresh_mask_gray", cv2.WINDOW_NORMAL)
+        #cv2.imshow('thresh_mask_gray',thresh_mask_gray)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        win.destroy()
 
         return object_position
 
@@ -191,17 +204,35 @@ class yolo_window():
         else:
             for table in large_table_list:
                 img = table[LTL_IMAGE_INDEX]
-                img.show()
+                #img.show()
 
             #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            croped = crop_polygon('test_image/diff2.jpg', (large_table_list[0][1], large_table_list[0][2], large_table_list[0][3], large_table_list[0][4]))
-            croped.show()
-            croped = self.object.PIL2CV(croped)
-            img_before = self.object.PIL2CV(large_table_list[0][LTL_IMAGE_INDEX])
-            objects = self.object.difference(img_before, croped)
-            print("objects" + str(objects))
-            self.object.Pts_in_polygon(objects[0], [bounding_box_list[0][BBL_PT1_INDEX], bounding_box_list[0][BBL_PT2_INDEX],bounding_box_list[0][BBL_PT3_INDEX],bounding_box_list[0][BBL_PT4_INDEX]])
-
+            for table in large_table_list:
+                # crop the image
+                img_now_croped = crop_polygon('test_image/diff2.jpg', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]))
+                #img_now_croped.show()
+                #convert image format frome PIL.Image to openCV
+                img_now_croped = self.object.PIL2CV(img_now_croped)
+                img_before = self.object.PIL2CV(table[LTL_IMAGE_INDEX])
+                # check for difference and get the object
+                objects = self.object.difference(img_before, img_now_croped)
+                print("objects" + str(objects))
+                # if no object is detected
+                if objects == []:
+                    print("--No OBJECT--")
+                #if object is detected
+                else:
+                    print("\n--OBJECT DETECTED--")
+                    #get all seats related to current table
+                    related_seats = []
+                    for seats in bounding_box_list:
+                        if seats[BBL_FILE_TYPE_INDEX] == 'table' and seats[BBL_ORIGINAL_T_INDEX] == table[LTL_TABLE_NAME_INDEX]:
+                            related_seats.append(seats)
+                    for object1 in objects:
+                        print(seats[BBL_SEAT_NAME_INDEX])
+                        if self.object.Pts_in_polygon(object1, [seats[BBL_PT1_INDEX], seats[BBL_PT2_INDEX],seats[BBL_PT3_INDEX],seats[BBL_PT4_INDEX]]):
+                            print("object in seat: " + str(seats[BBL_SEAT_NAME_INDEX]))
+                print("\n--OBJECT DETECT DONE--")
             
     # TODO new function to list yolo detect result
     #! need new crop function!!!!!!!!
@@ -423,6 +454,7 @@ class database_window():
         file_name_label.grid(row=2, column=0, pady=10)
         file_name_box = Entry(self.db_window, width=30)
         file_name_box.grid(row=2, column= 1)
+        file_name_box.focus()
 
         #add new data in database
         add_new_btn = Button(self.db_window, text="Add new Data", command=lambda: self.add_new(file_name_box.get()))
@@ -550,6 +582,8 @@ class database_window():
                                     box[BBL_LOCATION_INDEX],
                                     box[BBL_CAM_NAME_INDEX], 
                                     box[BBL_ORIGINAL_T_INDEX])
+
+            self.db_window.destroy()
           
     #load the data in database to bounding_box_list
     def load(self, file_name):
@@ -560,7 +594,7 @@ class database_window():
         if records == None:
             messagebox.showwarning("No Data", "No Data")
         else:
-            bounding_box_listbox.delete(0,'end')
+            self.tool.listbox_update()
 
             global bounding_box_list
             bounding_box_list = []
@@ -610,6 +644,7 @@ class database_window():
             self.tool.clean_canvas()        
             self.db_window.destroy()
             win.focus()
+            yolo_button.focus()
 
 
     #delete bounding_box_list in database
@@ -1062,10 +1097,10 @@ class Tool():
         sole_rectangle =[]
 
     def listbox_update(self):
-        bounding_box_listbox.insert(0, "  file type   |    seat name    |   original t")
+        bounding_box_listbox.insert(0, "  file type   |    name    |   original t")
         bounding_box_listbox.delete(1,'end')
         for box in bounding_box_list:
-            bounding_box_listbox.insert('end', "  "+ box[BBL_FILE_TYPE_INDEX] +"                    "+ box[BBL_SEAT_NAME_INDEX]+"                    "+box[BBL_ORIGINAL_T_INDEX])
+            bounding_box_listbox.insert('end', "  "+ box[BBL_FILE_TYPE_INDEX] +"               "+ box[BBL_SEAT_NAME_INDEX]+"                    "+box[BBL_ORIGINAL_T_INDEX])
 
     def undo_event(self):
         if len(bounding_box_list)<=0:
@@ -1320,8 +1355,8 @@ if __name__ == '__main__':
     db_button.grid(row=7, column=0, columnspan=3,pady=(30,0))
 
     #proceed to YOLO
-    okbutton = Button(frame2, text='YOLO detect', command=yolo_window, width=15)
-    okbutton.grid(row=8, column=0, columnspan=3,pady=10)
+    yolo_button = Button(frame2, text='YOLO detect', command=yolo_window, width=15)
+    yolo_button.grid(row=8, column=0, columnspan=3,pady=10)
     #? ============ frame 2 ===========
 
     
@@ -1334,5 +1369,7 @@ if __name__ == '__main__':
     seat_number_entry.insert(0,"1")
     floor_entry.insert(0,"1")
     camera_entry.insert(0,"1")
+
+    database_window(tool)
 
     win.mainloop()
