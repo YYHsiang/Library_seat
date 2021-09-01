@@ -225,7 +225,7 @@ class yolo_window():
                         #!!!!! object detect
                         for table in large_table_list:
                             # crop the image
-                            img_now_croped = crop_polygon('test_image/diff2.jpg', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]))
+                            img_now_croped = crop_polygon('', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]), image=image)
 
                             #convert image format frome PIL.Image to openCV
                             img_now_croped = self.object.PIL2CV(img_now_croped)
@@ -685,6 +685,8 @@ class Tool():
             self.clean_canvas()
 
         if self.tool == "rect":
+            # change file type to seat
+            file_type_data.set('seat')
 
             # disable widget in divider_frame
             for child in divider_frame.winfo_children():
@@ -717,6 +719,8 @@ class Tool():
 
         elif tool.tool == "point":
             point_cnt = 0
+            # change file type to table
+            file_type_data.set('table')
 
             # enable widget in divider_frame
             for child in divider_frame.winfo_children():
@@ -775,7 +779,7 @@ class Tool():
             self.canvas.bind('<ButtonPress-1>', self.zoom.move_from)
             self.canvas.bind('<B1-Motion>',     self.zoom.move_to)
 
-    def LargeTable(self):
+    def LargeTable(self, img_path):
         global large_table_list
         large_table_list.append([])
         large_table_list[-1].append(original_table_entry.get())#table name
@@ -863,7 +867,7 @@ class Tool():
                     global point_bounding_box_list
 
                     #? store undivided table coordinate
-                    self.LargeTable()
+                    self.LargeTable(self.zoom.img_path())
 
                     seat_divide_cnt = 0
                     point_bounding_box_list = []
@@ -1138,7 +1142,7 @@ class AutoScrollbar(ttk.Scrollbar):
 
 class Zoom_Advanced(ttk.Frame):
     ''' Advanced zoom of the image '''
-    def __init__(self, mainframe, path):
+    def __init__(self, mainframe):
         ''' Initialize the main Frame '''
         ttk.Frame.__init__(self, master=mainframe)
         #self.master.title('Zoom with mouse wheel')
@@ -1158,11 +1162,14 @@ class Zoom_Advanced(ttk.Frame):
         self.master.rowconfigure(0, weight=1)
         self.master.columnconfigure(0, weight=1)
         
-        self.image = Image.open(path)  # open image
+        self.image = Image.open(openSetupImage())  # open image
         self.width, self.height = self.image.size
         # Put image into container rectangle and use it to set proper coordinates to the image
         self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
         self.show_image()
+
+    def img_path(self):
+        return self.image.filename
 
     def scroll_y(self, *args, **kwargs):
         ''' Scroll canvas vertically and redraw the image '''
@@ -1227,10 +1234,7 @@ def crop_polygon(img_path:str, point:list, **kwargs):
 
 def openSetupImage(): #select an image to setup bounding box
     print("--OPEN IMAGE--")
-    global setup_img, setup_image, img_path
-    #img_path = filedialog.askopenfilename(initialdir="/", title="open an image", filetypes= ( ("all files", "*.*"), ("jpg files", "*.jpg") ))
-    img_path = "test_image/diff2.jpg"
-    image = Image.open(img_path)
+    img_path = filedialog.askopenfilename(initialdir="/", title="open an image", filetypes= ( ("all files", "*.*"), ("jpg files", "*.jpg") ))
     
     return img_path
 
@@ -1266,15 +1270,12 @@ if __name__ == '__main__':
     entry_frame = LabelFrame(frame2)
     entry_frame.grid(row=3, column=0, columnspan=2, pady=10, sticky='W')
     #? ====== Frame ======
-    
-    #! +++++++++++++++++++++
-    img_path = "test_image/diff1.jpg"
-    app = Zoom_Advanced(frame1, img_path)
+    # open file as setup image with zoom function 
+    app = Zoom_Advanced(frame1)
 
     # set tool to rect tool
     tool = Tool(app) # Selecting tools
     
-
     #? ============ frame 2 ===========
 
     #? ============ divider frame ===========
@@ -1362,11 +1363,5 @@ if __name__ == '__main__':
     #openSetupImage() 
     
     tool.change_tool("point")
-    original_table_entry.insert(0,"1")
-    seat_number_entry.insert(0,"1")
-    floor_entry.insert(0,"1")
-    camera_entry.insert(0,"1")
-
-    database_window(tool)
 
     win.mainloop()
