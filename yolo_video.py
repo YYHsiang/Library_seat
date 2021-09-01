@@ -115,9 +115,8 @@ class Object_detect():
         # obtain the regions of the two input images that differ
 
         #? cv2.THRESH_OTSU: use OTSU algorithm to choose the optimal threshold value
-        #blur_diff = cv2.medianBlur(diff, 5)
-        #thresh = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
-        thresh = cv2.threshold(diff, 210, 255, cv2.THRESH_BINARY_INV)[1]
+        #! thresh = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+        thresh = cv2.threshold(diff, 150, 255, cv2.THRESH_BINARY_INV)[1]
 
         #? cv2.CHAIN_APPROX_SIMPLE代表壓縮取回的Contour像素點，只取長寬及對角線的end points，而不傳回所有的點，如此可節省記憶體使用並加快速度。
         #? CV_RETR_EXTERNAL，則表示只取外層的Contour（如果有其它Contour包在內部）。
@@ -154,7 +153,7 @@ class Object_detect():
             object_position.append(min(cnt[:][:][0]))
             print(min(cnt[:][:][0])) 
 
-        cv2.namedWindow("after", cv2.WINDOW_NORMAL)
+        '''cv2.namedWindow("after", cv2.WINDOW_NORMAL)
         cv2.imshow('after',after)
         #cv2.namedWindow("blur_diff", cv2.WINDOW_NORMAL)
         #cv2.imshow('blur_diff',blur_diff)
@@ -164,11 +163,10 @@ class Object_detect():
         cv2.imshow('thresh',thresh)
         #cv2.namedWindow("thresh_mask", cv2.WINDOW_NORMAL)
         #cv2.imshow('thresh_mask',thresh_mask)
-        #cv2.namedWindow("thresh_mask_gray", cv2.WINDOW_NORMAL)
-        #cv2.imshow('thresh_mask_gray',thresh_mask_gray)
+        cv2.namedWindow("thresh_mask_gray", cv2.WINDOW_NORMAL)
+        cv2.imshow('thresh_mask_gray',thresh_mask_gray)
         cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        win.destroy()
+        cv2.destroyAllWindows()'''
 
         return object_position
 
@@ -202,37 +200,7 @@ class yolo_window():
             messagebox.showerror("Error", "Bounding Box is Empty")
             yolo_win.destroy()
         else:
-            for table in large_table_list:
-                img = table[LTL_IMAGE_INDEX]
-                #img.show()
-
-            #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            for table in large_table_list:
-                # crop the image
-                img_now_croped = crop_polygon('test_image/diff2.jpg', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]))
-                #img_now_croped.show()
-                #convert image format frome PIL.Image to openCV
-                img_now_croped = self.object.PIL2CV(img_now_croped)
-                img_before = self.object.PIL2CV(table[LTL_IMAGE_INDEX])
-                # check for difference and get the object
-                objects = self.object.difference(img_before, img_now_croped)
-                print("objects" + str(objects))
-                # if no object is detected
-                if objects == []:
-                    print("--No OBJECT--")
-                #if object is detected
-                else:
-                    print("\n--OBJECT DETECTED--")
-                    #get all seats related to current table
-                    related_seats = []
-                    for seats in bounding_box_list:
-                        if seats[BBL_FILE_TYPE_INDEX] == 'table' and seats[BBL_ORIGINAL_T_INDEX] == table[LTL_TABLE_NAME_INDEX]:
-                            related_seats.append(seats)
-                    for object1 in objects:
-                        print(seats[BBL_SEAT_NAME_INDEX])
-                        if self.object.Pts_in_polygon(object1, [seats[BBL_PT1_INDEX], seats[BBL_PT2_INDEX],seats[BBL_PT3_INDEX],seats[BBL_PT4_INDEX]]):
-                            print("object in seat: " + str(seats[BBL_SEAT_NAME_INDEX]))
-                print("\n--OBJECT DETECT DONE--")
+            self.detect_img()
             
     # TODO new function to list yolo detect result
     #! need new crop function!!!!!!!!
@@ -254,13 +222,46 @@ class yolo_window():
                     if j % fps == 0:
                         image=Image.fromarray(frame)
 
-                        #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                        croped = crop_polygon('test_image/diff1.jpg', [large_table_list[1],large_table_list[2],large_table_list[3],large_table_list[4]])
-                        croped.show()
-                        objects = self.object.difference(large_table_list[LTL_IMAGE_INDEX], croped)
-                        print("objects" + str(objects))
-                        self.object.Pts_in_polygon(objects[0], [bounding_box_list[BBL_PT1_INDEX], bounding_box_list[BBL_PT2_INDEX],bounding_box_list[BBL_PT3_INDEX],bounding_box_list[BBL_PT4_INDEX]])
+                        #!!!!! object detect
+                        for table in large_table_list:
+                            # crop the image
+                            img_now_croped = crop_polygon('test_image/diff2.jpg', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]))
 
+                            #convert image format frome PIL.Image to openCV
+                            img_now_croped = self.object.PIL2CV(img_now_croped)
+                            img_before = self.object.PIL2CV(table[LTL_IMAGE_INDEX])
+
+                            # check for difference and get the object
+                            objects = self.object.difference(img_before, img_now_croped)
+                            print("objects" + str(objects))
+                            
+                            # if no object is detected
+                            if objects == []:
+                                print("--No OBJECT--")
+                            #if object is detected
+                            else:
+                                print("\n--OBJECT DETECTED--")
+                                #get all seats related to current table
+                                related_seats = []
+                                for seats in bounding_box_list:
+                                    if seats[BBL_FILE_TYPE_INDEX] == 'table' and seats[BBL_ORIGINAL_T_INDEX] == table[LTL_TABLE_NAME_INDEX]:
+                                        related_seats.append(seats)
+
+                                for seat in related_seats:
+                                    # detect point in which table
+                                    remove_list =[] #contain the object that has been located
+                                    for object1 in objects:
+                                        if self.object.Pts_in_polygon(object1, [seat[BBL_PT1_INDEX], seat[BBL_PT2_INDEX],seat[BBL_PT3_INDEX],seat[BBL_PT4_INDEX]]):
+                                            print("object in seat: " + str(seat[BBL_SEAT_NAME_INDEX]))
+                                            remove_list.append(object1)
+
+                                    # remove the object that has been located
+                                    for ob in remove_list:
+                                        objects.remove(ob)        
+                            print("\n--OBJECT DETECT DONE--")
+
+
+                        #! yolo detect
                         '''for i in range(len(bounding_box_list)):
                             img=image.crop((bounding_box_list[i][1],bounding_box_list[i][2],bounding_box_list[i][3],bounding_box_list[i][4]))
                             r_image, people_num = self.yolo.detect_image(img)
@@ -273,10 +274,6 @@ class yolo_window():
                             r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)'''
                             
             self.yolo.close_session()
-
-    def ok_event(self): 
-        win.destroy()
-        #detect_img()
 
 class DB_4point_xy():
     def __init__(self):
