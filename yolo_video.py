@@ -103,7 +103,7 @@ class Object_detect():
         after_gray = cv2.cvtColor(after, cv2.COLOR_BGR2GRAY)
 
         # Compute SSIM between two images
-        #(score, diff) = structural_similarity(before_gray, after_gray, full=True)
+        (score, diff) = structural_similarity(before_gray, after_gray, full=True)
         print("Image similarity", score)
 
         # The diff image contains the actual image differences between the two images
@@ -151,7 +151,7 @@ class Object_detect():
         for cnt in thresh_mask_gray_cnt:
             x,y,w,h = cv2.boundingRect(cnt)
             cv2.rectangle(after, (x, y), (x + w, y + h), (36,255,12), 2)
-            object_position.append(min(cnt[:][:][0]))
+            object_position.append(min(cnt[:][:][0]).tolist()) # convert numpy array to list and append to object_position list
             print(min(cnt[:][:][0])) 
 
         '''cv2.namedWindow("after", cv2.WINDOW_NORMAL)
@@ -174,7 +174,7 @@ class Object_detect():
     def Pts_in_polygon(self, point:tuple or list, polygon_points:list or tuple):
         pts = Point(point[0], point[1])
         polygon = Polygon(polygon_points)
-        print(polygon.contains(pts))
+        #print(polygon.contains(pts))
         
         return polygon.contains(pts) #Ture or False
 
@@ -193,20 +193,29 @@ class yolo_window():
         self.video_path_entry = Entry(yolo_win)
         self.video_path_entry.grid(row=0, column=1, pady=5)
 
+        # browse file btn
+        browse_btn = Button(yolo_win, text="Browse", command=lambda: [self.video_path_entry.insert(0,str(openSetupImage())) , yolo_win.focus()])
+        browse_btn.grid(row=0, column=2, padx= 5)
+
         # start detect
-        yolo_done_btn = Button(yolo_win, text="Done", command=self.detect_img)
+        yolo_done_btn = Button(yolo_win, text="Done", command=self.detect_img_file)
         yolo_done_btn.grid(row=5, column=0 ,columnspan=3, padx=10, pady= 10)
 
         if bounding_box_list == []:
             messagebox.showerror("Error", "Bounding Box is Empty")
             yolo_win.destroy()
+
+    #! IP camera as source
+    def detect_img_streaming(self):
+        if self.video_path_entry.get() == "":
+            messagebox.showerror("Error","Please enter Video Path")
         else:
-            self.detect_img()
-            
-    # TODO new function to list yolo detect result
+            video_path = self.video_path_entry.get()
+            self.video = cv2.VideoCapture(video_path)
+            (self.grabbed, self.frame) = self.video.read()
+
     #! need new crop function!!!!!!!!
-    def detect_img(self):
-        pass
+    def detect_img_file(self):
         if self.video_path_entry.get() == "":
             messagebox.showerror("Error","Please enter Video Path")
         else:
@@ -258,21 +267,26 @@ class yolo_window():
 
                                     # remove the object that has been located
                                     for ob in remove_list:
-                                        objects.remove(ob)        
+                                        print("rm_list: " + str(ob))
+                                        objects.remove(ob)
+                                                
                             print("\n--OBJECT DETECT DONE--")
 
-
                         #! yolo detect
-                        '''for i in range(len(bounding_box_list)):
-                            img=image.crop((bounding_box_list[i][1],bounding_box_list[i][2],bounding_box_list[i][3],bounding_box_list[i][4]))
-                            r_image, people_num = yolo.detect_image(img)
-                            bounding_box_list[i][5]=people_num
+                        for seats in bounding_box_list:
+                            if seats[BBL_FILE_TYPE_INDEX] == 'seat':
+                                img = crop_polygon('', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]), image=image)
+                                img = self.object.PIL2CV(img)  #change format from Pillow Image to OpenCV image
+                                img = crop_with_argwhere(img) # crop black area
+
+                                r_image, people_num = yolo.detect_image(img)
+                                bounding_box_list[i][5]=people_num
                             
-                            postdata_toserver["seat"]=bounding_box_list[i][BBL_SEAT_NAME_INDEX]
-                            postdata_toserver["location"]=bounding_box_list[i][BBL_LOCATION_INDEX]
-                            postdata_toserver["camera"]=bounding_box_list[i][BBL_CAM_NAME_INDEX]
-                            postdata_toserver["occupy"]=str(people_num)
-                            r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)'''
+                                postdata_toserver["seat"]=bounding_box_list[i][BBL_SEAT_NAME_INDEX]
+                                postdata_toserver["location"]=bounding_box_list[i][BBL_LOCATION_INDEX]
+                                postdata_toserver["camera"]=bounding_box_list[i][BBL_CAM_NAME_INDEX]
+                                postdata_toserver["occupy"]=str(people_num)
+                                r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
                             
             self.yolo.close_session()
 
@@ -957,14 +971,14 @@ class Tool():
         if point_cnt == 0:
             point_bounding_box_list = []
             sole_polygon_list = []
-            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0))/app.zoom, event.y + (event.y+self.canvas.canvasy(0))/app.zoom))
+            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0))/app.zoom,(event.y+self.canvas.canvasy(0))/app.zoom))
             #draw polygon
             sole_polygon_list.append((event.x+self.canvas.canvasx(0))/app.zoom)
             sole_polygon_list.append((event.y+self.canvas.canvasy(0))/app.zoom)
             point_cnt += 1
 
         elif point_cnt < 4:
-            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0))/app.zoom, event.y + (event.y+self.canvas.canvasy(0))/app.zoom))
+            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0))/app.zoom,(event.y+self.canvas.canvasy(0))/app.zoom))
             #draw polygon
             sole_polygon_list.append((event.x+self.canvas.canvasx(0))/app.zoom)
             sole_polygon_list.append((event.y+self.canvas.canvasy(0))/app.zoom)
@@ -973,11 +987,12 @@ class Tool():
                 if sole_polygon is not None:
                     self.clean_canvas()
                 sole_polygon.append(self.canvas.create_polygon(sole_polygon_list, outline='red', fill=''))
-                print(len(sole_polygon))
+                #print(len(sole_polygon))
                 point_cnt = 0
             else:
                 point_cnt += 1
-        #print(point_bounding_box_list)
+        print(point_bounding_box_list)
+        print(sole_polygon)
 
 
     def rect_left_mouse_down(self, event):
@@ -1077,7 +1092,7 @@ class Tool():
                                                                 table[LTL_PT3_INDEX][0], table[LTL_PT3_INDEX][1], 
                                                                 table[LTL_PT4_INDEX][0], table[LTL_PT4_INDEX][1], 
                                                                 outline='black', fill=''))
-                bounding_box_text.append(self.canvas.create_text(table[LTL_PT2_INDEX][0], table[LTL_PT2_INDEX][1],  text=box[1], fill= 'black', anchor="nw", font=("Helvetica", 15)))
+                bounding_box_text.append(self.canvas.create_text(table[LTL_PT2_INDEX][0], table[LTL_PT2_INDEX][1],  text=box[BBL_ORIGINAL_T_INDEX], fill= 'black', anchor="nw", font=("Helvetica", 15)))
                 bounding_box_text.append(self.canvas.create_rectangle(self.canvas.bbox(bounding_box_text[-1]),fill="white"))
                 self.canvas.tag_lower(bounding_box_text[-1],bounding_box_text[-2])
         else:
@@ -1243,9 +1258,25 @@ def crop_polygon(img_path:str, point:list, **kwargs):
 
     return image_result
 
+# @Gareth Rees's solution
+def crop_with_argwhere(image):
+    # Mask of non-black pixels (assuming image has a single channel).
+    mask = image > 0
+    
+    # Coordinates of non-black pixels.
+    coords = np.argwhere(mask)
+    
+    # Bounding box of non-black pixels.
+    x0, y0 = coords.min(axis=0)
+    x1, y1 = coords.max(axis=0) + 1   # slices are exclusive at the top
+    
+    # Get the contents of the bounding box.
+    cropped = image[x0:x1, y0:y1]
+    return cropped
+
 def openSetupImage(): #select an image to setup bounding box
     print("--OPEN IMAGE--")
-    img_path = filedialog.askopenfilename(initialdir="/", title="open an image", filetypes= ( ("all files", "*.*"), ("jpg files", "*.jpg") ))
+    img_path = filedialog.askopenfilename(initialdir="/", title="open an image", filetypes= ( ("all files", "*.*"), ("jpg files", "*.jpg"), ("mp4 files", "*.mp4") ))
     
     return img_path
 
@@ -1371,15 +1402,14 @@ if __name__ == '__main__':
     #? ============ frame 2 ===========
 
     #? ============ frame 3 ===========
+    # zoom in
     zoom_in_button = Button(frame3, text='+', command=app.zoom_in, width=15)
     zoom_in_button.grid(row=0, column=0, pady=10)
 
+    # zoom out
     zoom_out_button = Button(frame3, text='-', command=app.zoom_out, width=15)
     zoom_out_button.grid(row=0, column=1, pady=10)
     #? ============ frame 3 ===========
-
-    #select a image to setup bounding box
-    #openSetupImage() 
     
     tool.change_tool("point")
 
