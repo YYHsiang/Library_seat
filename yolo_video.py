@@ -12,12 +12,12 @@ import random
 from tkinter import ttk
 
 # difference
-from skimage.metrics import structural_similarity
+#from skimage.metrics import structural_similarity
 import numpy as np
 
 # point inside polygon
-from shapely.geometry import Point
-from shapely.geometry.polygon import Polygon
+#from shapely.geometry import Point
+#from shapely.geometry.polygon import Polygon
 
 from numpy.lib.arraypad import pad
 from yolo import YOLO
@@ -180,48 +180,20 @@ class Object_detect():
         
         return polygon.contains(pts) #Ture or False
 
-class yolo_window():
+
+class yolo_detect():
     def __init__(self):
-        #self.yolo = YOLO()
         self.object = Object_detect('none')
-
-        yolo_win = Toplevel()
-        yolo_win.title("YOLO image detection")
-        yolo_win.geometry("400x400")
-
-        # enter video path
-        video_path_label = Label(yolo_win, text="Video Path: ")
-        video_path_label.grid(row=0, column=0, pady=10, padx=5)
-        self.video_path_entry = Entry(yolo_win)
-        self.video_path_entry.grid(row=0, column=1, pady=5)
-
-        # browse file btn
-        browse_btn = Button(yolo_win, text="Browse", command=lambda: [self.video_path_entry.insert(0,str(openSetupImage())) , yolo_win.focus()])
-        browse_btn.grid(row=0, column=2, padx= 5)
-
-        # start detect
-        yolo_done_btn = Button(yolo_win, text="Done", command=self.detect_img_streaming)
-        yolo_done_btn.grid(row=5, column=0 ,columnspan=3, padx=10, pady= 10)
-
-        if bounding_box_list == []:
-            messagebox.showerror("Error", "Bounding Box is Empty")
-            yolo_win.destroy()
-
-    #! IP camera as source
-    def detect_img_streaming(self):
-        if self.video_path_entry.get() == "":
+        if ip_entry.get() == "":
             messagebox.showerror("Error","Please enter Video Path")
         else:
             pretime = 0
-            video_path = self.video_path_entry.get()
-            self.video = cv2.VideoCapture(video_path)
+            self.video = cv2.VideoCapture('rtsp://'+ip_entry.get()+':8080/h264_pcm.sdp')
             print("--CAMERA CONNECTED--")
             while True:
                 if time.time() -  pretime > 10:
                     pretime = time.time()
-                    
-                    video_path = self.video_path_entry.get()
-                    self.video = cv2.VideoCapture(video_path)       
+                       
                     (self.grabbed, self.frame) = self.video.read()
 
                     image=Image.fromarray(self.frame)
@@ -265,6 +237,10 @@ class yolo_window():
                                     objects.remove(ob)
                                             
                         print("\n--OBJECT DETECT DONE--")
+
+    #! IP camera as source
+    #def detect_img_streaming(self):
+        
 
     #! need new crop function!!!!!!!!
     def detect_img_file(self):
@@ -1230,7 +1206,12 @@ class Zoom_Advanced(ttk.Frame):
         self.master.columnconfigure(0, weight=1)
         
         self.zoom=1
-        self.image = Image.open(openSetupImage())  # open image
+        
+    def get_ip(self):
+        cap = cv2.VideoCapture('rtsp://'+ip_entry.get()+':8080/h264_pcm.sdp')
+        ret, frame = cap.read()
+        frame = Image.fromarray(cv2.cvtColor(frame,cv2.COLOR_BGR2RGB))
+        self.image = frame  # open image
         self.width, self.height = self.image.size
         # Put image into container rectangle and use it to set proper coordinates to the image
         self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
@@ -1331,6 +1312,7 @@ def openSetupImage(): #select an image to setup bounding box
     img_path = filedialog.askopenfilename(initialdir="/", title="open an image", filetypes= ( ("all files", "*.*"), ("jpg files", "*.jpg"), ("mp4 files", "*.mp4") ))
     
     return img_path
+
 
 if __name__ == '__main__':
 
@@ -1448,7 +1430,7 @@ if __name__ == '__main__':
     db_button.grid(row=7, column=0, columnspan=3,pady=(30,0))
 
     #proceed to YOLO
-    yolo_button = Button(frame2, text='YOLO detect', command=yolo_window, width=15)
+    yolo_button = Button(frame2, text='YOLO detect', command=yolo_detect, width=15)
     yolo_button.grid(row=8, column=0, columnspan=3,pady=10)
     #? ============ frame 2 ===========
 
@@ -1460,6 +1442,12 @@ if __name__ == '__main__':
     # zoom out
     zoom_out_button = Button(frame3, text='-', command=app.zoom_out, width=15)
     zoom_out_button.grid(row=0, column=1, pady=10)
+
+    ip_entry = Entry(frame3)
+    ip_entry.grid(row=1, column=0, pady=10)
+
+    ip_button = Button(frame3, text='enter', command=app.get_ip, width=15)
+    ip_button.grid(row=1, column=1, pady=10)
     #? ============ frame 3 ===========
     
     tool.change_tool("point")
