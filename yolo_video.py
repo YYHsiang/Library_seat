@@ -546,14 +546,14 @@ class database_window():
             for record in db_win_records:
                 # collect all file name, assume SAME file_name with SAME location and camera_name.
                 # and only count seat #
-                if files == [] and record[1] == 'seat':
+                if files == [] :
                     files.append([])
                     files[0].append(record[0]) #file name
                     files[0].append(record[1]) #file type
                     files[0].append(1) #count seats with same file name
                     files[0].append(record[11]) #location
                     files[0].append(record[12]) #camera_name
-                elif files != [] and record[1] == 'seat':
+                elif files != []:
                     #check for duplicate
                     ifnew = 0
                     for index in files:
@@ -573,7 +573,7 @@ class database_window():
                         files[-1].append(record[12]) #camera_name
 
                     #if file name in record doesnt exist in file, then add one.
-                    else:
+                    elif ifnew == False  and record[1] == 'seat':
                         i = files.index(index)
                         files[i][2] +=1 
                     
