@@ -2,6 +2,7 @@ import sys
 import argparse
 import math
 import io
+import time
 #from yolo import YOLO
 
 import os
@@ -164,10 +165,11 @@ class Object_detect():
         cv2.imshow('thresh',thresh)
         #cv2.namedWindow("thresh_mask", cv2.WINDOW_NORMAL)
         #cv2.imshow('thresh_mask',thresh_mask)
+        '''
         cv2.namedWindow("thresh_mask_gray", cv2.WINDOW_NORMAL)
         cv2.imshow('thresh_mask_gray',thresh_mask_gray)
         cv2.waitKey(0)
-        cv2.destroyAllWindows()'''
+        cv2.destroyAllWindows()
 
         return object_position
 
@@ -198,7 +200,7 @@ class yolo_window():
         browse_btn.grid(row=0, column=2, padx= 5)
 
         # start detect
-        yolo_done_btn = Button(yolo_win, text="Done", command=self.detect_img_file)
+        yolo_done_btn = Button(yolo_win, text="Done", command=self.detect_img_streaming)
         yolo_done_btn.grid(row=5, column=0 ,columnspan=3, padx=10, pady= 10)
 
         if bounding_box_list == []:
@@ -210,9 +212,59 @@ class yolo_window():
         if self.video_path_entry.get() == "":
             messagebox.showerror("Error","Please enter Video Path")
         else:
+            pretime = 0
             video_path = self.video_path_entry.get()
             self.video = cv2.VideoCapture(video_path)
-            (self.grabbed, self.frame) = self.video.read()
+            print("--CAMERA CONNECTED--")
+            while True:
+                if time.time() -  pretime > 10:
+                    pretime = time.time()
+                    
+                    video_path = self.video_path_entry.get()
+                    self.video = cv2.VideoCapture(video_path)       
+                    (self.grabbed, self.frame) = self.video.read()
+
+                    image=Image.fromarray(self.frame)
+                    image.show()
+                    #!!!!! object detect
+                    for table in large_table_list:
+                        # crop the image
+                        img_now_croped = crop_polygon('', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]), image=image)
+
+                        #convert image format frome PIL.Image to openCV
+                        img_now_croped = self.object.PIL2CV(img_now_croped)
+                        img_before = self.object.PIL2CV(table[LTL_IMAGE_INDEX])
+
+                        # check for difference and get the object
+                        objects = self.object.difference(img_before, img_now_croped)
+                        print("objects" + str(objects))
+                        
+                        # if no object is detected
+                        if objects == []:
+                            print("--No OBJECT--")
+                        #if object is detected
+                        else:
+                            print("\n--OBJECT DETECTED--")
+                            #get all seats related to current table
+                            related_seats = []
+                            for seats in bounding_box_list:
+                                if seats[BBL_FILE_TYPE_INDEX] == 'table' and seats[BBL_ORIGINAL_T_INDEX] == table[LTL_TABLE_NAME_INDEX]:
+                                    related_seats.append(seats)
+
+                            for seat in related_seats:
+                                # detect point in which table
+                                remove_list =[] #contain the object that has been located
+                                for object1 in objects:
+                                    if self.object.Pts_in_polygon(object1, [seat[BBL_PT1_INDEX], seat[BBL_PT2_INDEX],seat[BBL_PT3_INDEX],seat[BBL_PT4_INDEX]]):
+                                        print("object in seat: " + str(seat[BBL_SEAT_NAME_INDEX]))
+                                        remove_list.append(object1)
+
+                                # remove the object that has been located
+                                for ob in remove_list:
+                                    print("rm_list: " + str(ob))
+                                    objects.remove(ob)
+                                            
+                        print("\n--OBJECT DETECT DONE--")
 
     #! need new crop function!!!!!!!!
     def detect_img_file(self):
@@ -603,7 +655,7 @@ class database_window():
         db_win = DB_4point_xy()
         
         records = db_win.select(TABLE_XY_NAME, file_name)
-        if records == None:
+        if records == []:
             messagebox.showwarning("No Data", "No Data")
         else:
             self.tool.listbox_update()
@@ -1316,7 +1368,6 @@ if __name__ == '__main__':
     #? ====== Frame ======
     # open file as setup image with zoom function 
     app = Zoom_Advanced(frame1)
-
     # set tool to rect tool
     tool = Tool(app) # Selecting tools
     
