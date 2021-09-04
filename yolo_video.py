@@ -1332,12 +1332,12 @@ if __name__ == '__main__':
     win.update_idletasks()
 
     #? ====== Frame ======
-    frame1 =Frame(win,bg='red',bd=10)
+    frame1 =Frame(win,bg='#0071C5',bd=5)
     frame1.grid(row=0,column=0)
-    frame2=Frame(win,bg='yellow',bd=20)
+    frame2=Frame(win,bg='#C4DCE4',bd=20)
     frame2.grid(row=0,column=1)
-    frame3=Frame(win,bg='blue',bd=10)
-    frame3.grid(row=1,column=0)
+    canvas_tool=Frame(frame1, bg='#016b97',bd=3)
+    canvas_tool.grid(row=2,column=0, pady=10)
     # select tool frame
     select_tool_frame = LabelFrame(frame2, text="Select Tool")
     select_tool_frame.grid(row=0, column=0, columnspan=2, pady=10, sticky='W')
@@ -1436,20 +1436,25 @@ if __name__ == '__main__':
 
     #? ============ frame 3 ===========
     # zoom in
-    zoom_in_button = Button(frame3, text='+', command=app.zoom_in, width=15)
-    zoom_in_button.grid(row=0, column=0, pady=10)
+    zoom_in_button = Button(canvas_tool, text='+', command=app.zoom_in, width=7)
+    zoom_in_button.grid(row=0, column=0, pady=3, padx=10)
 
     # zoom out
-    zoom_out_button = Button(frame3, text='-', command=app.zoom_out, width=15)
-    zoom_out_button.grid(row=0, column=1, pady=10)
+    zoom_out_button = Button(canvas_tool, text='-', command=app.zoom_out, width=7)
+    zoom_out_button.grid(row=0, column=1, padx=10)
 
-    ip_entry = Entry(frame3)
-    ip_entry.grid(row=1, column=0, pady=10)
+    ip_entry = Entry(canvas_tool)
+    ip_entry.grid(row=0, column=2, padx=(50,0))
 
-    ip_button = Button(frame3, text='enter', command=app.get_ip, width=15)
-    ip_button.grid(row=1, column=1, pady=10)
+    ip_button = Button(canvas_tool, text='enter', command=app.get_ip, width=15)
+    ip_button.grid(row=0, column=3, padx=5)
     #? ============ frame 3 ===========
     
     tool.change_tool("point")
+    ip_entry.insert(0,"192.168.137.211")
+    original_table_entry.insert(0,"1")
+    seat_number_entry.insert(0,"1")
+    camera_entry.insert(0,"1")
+    floor_entry.insert(0,"1")
 
     win.mainloop()
