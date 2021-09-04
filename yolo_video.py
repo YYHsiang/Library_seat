@@ -478,13 +478,33 @@ class database_window():
         self.db_window.geometry("500x400")
 
         self.tool = tool
-
+        
+        # Frame for query
         self.file_list= LabelFrame(self.db_window, text="Files")
-        self.file_list.grid(row=1, column= 1, padx=(0,10), pady=10)
+        self.file_list.grid(row=1, column= 0,columnspan=3, padx=30, pady=10)
 
         #show data in database
         show_query_btn = Button(self.db_window, text="show query", command=self.show_query)
         show_query_btn.grid(row=0,column= 0, pady=10, )
+
+        #Treeview
+        self.query_tree = ttk.Treeview(self.file_list)
+        self.query_tree["columns"] = ("File type", "seat #", "Location", "Camera")
+
+        # define columns
+        self.query_tree.column("#0", width=120, anchor=W)
+        self.query_tree.column("File type", width=80, anchor=W)
+        self.query_tree.column("seat #", width=80, anchor=CENTER)
+        self.query_tree.column("Location", width=80, anchor=W)
+        self.query_tree.column("Camera", width=80, anchor=W)
+
+        # define headings
+        self.query_tree.heading("#0", text="File Name", anchor=W)
+        self.query_tree.heading("File type", text="File type", anchor=W)
+        self.query_tree.heading("seat #", text="seat #", anchor=CENTER)
+        self.query_tree.heading("Location", text="Location", anchor=W)
+        self.query_tree.heading("Camera", text="Camera", anchor=W)
+        self.query_tree.pack()
 
         #show query
         self.show_query()
@@ -559,28 +579,13 @@ class database_window():
                     
         #print(files)
 
-        f_name, f_type, seat_num, locat, cam_n = '','','','',''
-        for file in files:
-            f_name += str(file[0]) +'\n'
-            f_type += str(file[1]) +'\n'
-            seat_num += str(file[2]) +'\n'
-            locat += str(file[3]) +'\n'
-            cam_n += str(file[4]) +'\n'
-
-        # label for query data
-        label_f_n_file = Label(self.file_list, text=f_name).grid(row=1, column= 0, pady=5, padx= 2)
-        label_f_t_file = Label(self.file_list, text=f_type).grid(row=1, column= 1, pady=5, padx= 2)
-        label_s_n_file = Label(self.file_list, text=seat_num).grid(row=1, column= 2, pady=5, padx= 2)
-        label_loca_file = Label(self.file_list, text=locat).grid(row=1, column= 3, pady=5, padx= 2)
-        label_cam_file = Label(self.file_list, text=cam_n).grid(row=1, column= 4, pady=5, padx= 2)
-
-        # label for query title        
-        label_f_n = Label(self.file_list, text="File name").grid(row=0, column= 0, pady=5, padx= 2)
-        label_f_t = Label(self.file_list, text="File type").grid(row=0, column= 1, pady=5, padx= 2)
-        label_s_n = Label(self.file_list, text="Seat #").grid(row=0, column= 2, pady=5, padx= 2)
-        label_loca = Label(self.file_list, text="Location").grid(row=0, column= 3, pady=5, padx= 2)
-        label_cam = Label(self.file_list, text="Cam name").grid(row=0, column= 4, pady=5, padx= 2)
-
+        
+        self.query_tree.delete(*self.query_tree.get_children())
+        count = 0 # for iid 
+        for record in files:
+            self.query_tree.insert(parent='', index='end', iid= count, text=record[0], values=(record[1],record[2],record[3],record[4]))
+            count += 1
+        
 
     #add bounding_box_list to database
     def add_new(self, file_name):
