@@ -12,12 +12,12 @@ import random
 from tkinter import ttk
 
 # difference
-#from skimage.metrics import structural_similarity
+from skimage.metrics import structural_similarity
 import numpy as np
 
 # point inside polygon
-#from shapely.geometry import Point
-#from shapely.geometry.polygon import Polygon
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 from numpy.lib.arraypad import pad
 from yolo import YOLO
@@ -165,12 +165,11 @@ class Object_detect():
         cv2.imshow('thresh',thresh)
         #cv2.namedWindow("thresh_mask", cv2.WINDOW_NORMAL)
         #cv2.imshow('thresh_mask',thresh_mask)
-        '''
         cv2.namedWindow("thresh_mask_gray", cv2.WINDOW_NORMAL)
         cv2.imshow('thresh_mask_gray',thresh_mask_gray)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-
+        '''
         return object_position
 
     def Pts_in_polygon(self, point:tuple or list, polygon_points:list or tuple):
@@ -237,9 +236,10 @@ class yolo_detect():
                                     objects.remove(ob)
                                             
                         print("\n--OBJECT DETECT DONE--")
+    
+    def stop_detect(self):
+        self.start_flag = False
 
-    #! IP camera as source
-    #def detect_img_streaming(self):
         
 
     #! need new crop function!!!!!!!!
@@ -506,28 +506,35 @@ class database_window():
         self.query_tree.heading("Camera", text="Camera", anchor=W)
         self.query_tree.pack()
 
+        self.query_tree.bind("<Double-1>", self.OnDoubleClick)
+
         #show query
         self.show_query()
 
         # File name box
         file_name_label = Label(self.db_window, text="File Name:")
         file_name_label.grid(row=2, column=0, pady=10)
-        file_name_box = Entry(self.db_window, width=30)
-        file_name_box.grid(row=2, column= 1)
-        file_name_box.focus()
+        self.file_name_box = Entry(self.db_window, width=30)
+        self.file_name_box.grid(row=2, column= 1)
+        self.file_name_box.focus()
 
         #add new data in database
-        add_new_btn = Button(self.db_window, text="Add new Data", command=lambda: self.add_new(file_name_box.get()))
+        add_new_btn = Button(self.db_window, text="Add new Data", command=lambda: self.add_new(self.file_name_box.get()))
         add_new_btn.grid(row=3, column=0, padx=5)
 
         #load data in database
-        load_btn = Button(self.db_window, text="Load", width=25 , command=lambda: self.load(file_name_box.get()))
+        load_btn = Button(self.db_window, text="Load", width=25 , command=lambda: self.load(self.file_name_box.get()))
         load_btn.grid(row=3, column=1)
 
         #delete data in database
-        delete_btn = Button(self.db_window, text="Delete Data", command=lambda: self.delete_file(file_name_box.get()))
+        delete_btn = Button(self.db_window, text="Delete Data", command=lambda: self.delete_file(self.file_name_box.get()))
         delete_btn.grid(row=3, column=2)
 
+    # double click to select file
+    def OnDoubleClick(self, event):
+        item = self.query_tree.selection()[0]
+        self.file_name_box.delete(0,'end')
+        self.file_name_box.insert(0, self.query_tree.item(item,"text"))
         
     # show all files in db
     def show_query(self):
@@ -1352,7 +1359,7 @@ if __name__ == '__main__':
 
     entry_frame = LabelFrame(frame2)
     entry_frame.grid(row=3, column=0, columnspan=2, pady=10, sticky='W')
-    #? ====== Frame ======
+    #? ====== /Frame ======
     # open file as setup image with zoom function 
     app = Zoom_Advanced(frame1)
     # set tool to rect tool
@@ -1384,7 +1391,7 @@ if __name__ == '__main__':
     image_cor_entry.insert(0,"1.15")
 
     
-    #? ============ divider frame ===========
+    #? ============ /divider frame ===========
 
     #? ============ entry frame ===========
     # Option for file types
@@ -1424,7 +1431,7 @@ if __name__ == '__main__':
 
     next_seat_btn = Button(entry_frame, text="Next", width=10, command=tool.divide_seat)
     next_seat_btn.grid(column=0, row=6, padx=10, pady=5, columnspan=3, sticky='E')
-    #? ============ entry frame ===========
+    #? ============ /entry frame ===========
 
     # undo button to clear last bounding box
     undobutton = Button(frame2, text='Undo', command=tool.undo_event, width=15)
@@ -1437,7 +1444,7 @@ if __name__ == '__main__':
     #proceed to YOLO
     yolo_button = Button(frame2, text='YOLO detect', command=yolo_detect, width=15)
     yolo_button.grid(row=8, column=0, columnspan=3,pady=10)
-    #? ============ frame 2 ===========
+    #? ============ /frame 2 ===========
 
     #? ============ frame 3 ===========
     # zoom in
@@ -1453,7 +1460,7 @@ if __name__ == '__main__':
 
     ip_button = Button(canvas_tool, text='enter', command=app.get_ip, width=15)
     ip_button.grid(row=0, column=3, padx=5)
-    #? ============ frame 3 ===========
+    #? ============ /frame 3 ===========
     
     tool.change_tool("point")
     ip_entry.insert(0,"192.168.137.211")
