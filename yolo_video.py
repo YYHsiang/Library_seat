@@ -20,7 +20,7 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
 from numpy.lib.arraypad import pad
-from yolo import YOLO
+#from yolo import YOLO
 from yolo3.utils import rand
 from PIL import Image, ImageTk, ImageDraw
 import requests
@@ -183,6 +183,7 @@ class Object_detect():
 class yolo_detect():
     def __init__(self):
         self.object = Object_detect('none')
+        #yolo=YOLO()
         if ip_entry.get() == "":
             messagebox.showerror("Error","Please enter Video Path")
         else:
@@ -192,7 +193,7 @@ class yolo_detect():
             while True:
                 if time.time() -  pretime > 10:
                     pretime = time.time()
-                       
+                    self.video = cv2.VideoCapture('rtsp://'+ip_entry.get()+':8080/h264_pcm.sdp')
                     (self.grabbed, self.frame) = self.video.read()
 
                     image=Image.fromarray(self.frame)
@@ -236,87 +237,24 @@ class yolo_detect():
                                     objects.remove(ob)
                                             
                         print("\n--OBJECT DETECT DONE--")
-    
-    def stop_detect(self):
-        self.start_flag = False
-
-        
-
-    #! need new crop function!!!!!!!!
-    def detect_img_file(self):
-        if self.video_path_entry.get() == "":
-            messagebox.showerror("Error","Please enter Video Path")
-        else:
-            video_path = self.video_path_entry.get()
-            capture = cv2.VideoCapture(video_path)
-            fps = int(capture.get(cv2.CAP_PROP_FPS))
-            total_frame = capture.get(cv2.CAP_PROP_FRAME_COUNT)
-            while True:
-                for j in range(int(total_frame)):
-                    ret, frame = capture.read()
-                    if not ret:
-                        break
-                    #一秒
-                    if j % fps == 0:
-                        image=Image.fromarray(frame)
-
-                        #!!!!! object detect
-                        for table in large_table_list:
-                            # crop the image
-                            img_now_croped = crop_polygon('', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]), image=image)
-
-                            #convert image format frome PIL.Image to openCV
-                            img_now_croped = self.object.PIL2CV(img_now_croped)
-                            img_before = self.object.PIL2CV(table[LTL_IMAGE_INDEX])
-
-                            # check for difference and get the object
-                            objects = self.object.difference(img_before, img_now_croped)
-                            print("objects" + str(objects))
-                            
-                            # if no object is detected
-                            if objects == []:
-                                print("--No OBJECT--")
-                            #if object is detected
-                            else:
-                                print("\n--OBJECT DETECTED--")
-                                #get all seats related to current table
-                                related_seats = []
-                                for seats in bounding_box_list:
-                                    if seats[BBL_FILE_TYPE_INDEX] == 'table' and seats[BBL_ORIGINAL_T_INDEX] == table[LTL_TABLE_NAME_INDEX]:
-                                        related_seats.append(seats)
-
-                                for seat in related_seats:
-                                    # detect point in which table
-                                    remove_list =[] #contain the object that has been located
-                                    for object1 in objects:
-                                        if self.object.Pts_in_polygon(object1, [seat[BBL_PT1_INDEX], seat[BBL_PT2_INDEX],seat[BBL_PT3_INDEX],seat[BBL_PT4_INDEX]]):
-                                            print("object in seat: " + str(seat[BBL_SEAT_NAME_INDEX]))
-                                            remove_list.append(object1)
-
-                                    # remove the object that has been located
-                                    for ob in remove_list:
-                                        print("rm_list: " + str(ob))
-                                        objects.remove(ob)
-                                                
-                            print("\n--OBJECT DETECT DONE--")
-
                         #! yolo detect
                         for seats in bounding_box_list:
                             if seats[BBL_FILE_TYPE_INDEX] == 'seat':
-                                img = crop_polygon('', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]), image=image)
+                                print(seats)
+                                img = crop_polygon('', (seats[BBL_PT1_INDEX], seats[BBL_PT2_INDEX], seats[BBL_PT3_INDEX], seats[BBL_PT4_INDEX]), image=image)
                                 img = self.object.PIL2CV(img)  #change format from Pillow Image to OpenCV image
                                 img = crop_with_argwhere(img) # crop black area
 
-                                r_image, people_num = yolo.detect_image(img)
-                                bounding_box_list[i][5]=people_num
-                            
-                                postdata_toserver["seat"]=bounding_box_list[i][BBL_SEAT_NAME_INDEX]
-                                postdata_toserver["location"]=bounding_box_list[i][BBL_LOCATION_INDEX]
-                                postdata_toserver["camera"]=bounding_box_list[i][BBL_CAM_NAME_INDEX]
-                                postdata_toserver["occupy"]=str(people_num)
-                                r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
-                            
-            self.yolo.close_session()
+                                #r_image, people_num = yolo.detect_image(img)
+                                #bounding_box_list[i][5]=people_num
+                                
+                                #postdata_toserver["seat"]=bounding_box_list[i][BBL_SEAT_NAME_INDEX]
+                                #postdata_toserver["location"]=bounding_box_list[i][BBL_LOCATION_INDEX]
+                                #postdata_toserver["camera"]=bounding_box_list[i][BBL_CAM_NAME_INDEX]
+                                #postdata_toserver["occupy"]=str(people_num)
+                                #r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
+                    
+            #yolo.close_session()
 
 class DB_4point_xy():
     def __init__(self):
@@ -834,7 +772,7 @@ class Tool():
             self.canvas.bind('<ButtonPress-1>', self.zoom.move_from)
             self.canvas.bind('<B1-Motion>',     self.zoom.move_to)
 
-    def LargeTable(self, img_path):
+    def LargeTable(self, img):
         global large_table_list
         large_table_list.append([])
         large_table_list[-1].append(original_table_entry.get())#table name
@@ -842,7 +780,7 @@ class Tool():
         large_table_list[-1].append(point_bounding_box_list[1]) #pt2
         large_table_list[-1].append(point_bounding_box_list[2])#pt3
         large_table_list[-1].append(point_bounding_box_list[3])#pt4
-        large_table_list[-1].append(crop_polygon(img_path, (point_bounding_box_list[0], point_bounding_box_list[1], point_bounding_box_list[2], point_bounding_box_list[3])))
+        large_table_list[-1].append(crop_polygon('', (point_bounding_box_list[0], point_bounding_box_list[1], point_bounding_box_list[2], point_bounding_box_list[3]),image=img))
         print(large_table_list)
 
 
@@ -922,7 +860,7 @@ class Tool():
                     global point_bounding_box_list
 
                     #? store undivided table coordinate
-                    self.LargeTable(self.zoom.img_path())
+                    self.LargeTable(self.zoom.ip_img())
 
                     seat_divide_cnt = 0
                     point_bounding_box_list = []
@@ -1055,11 +993,10 @@ class Tool():
             messagebox.showerror("Error","Please Enter parameter")
         else:
             # store image coordinate
-            self.corp_img(self.canvas.image, 'one_corp.jpg', 
-                        (left_mouse_down_x+self.canvas.canvasx(0))/app.zoom, 
-                        (left_mouse_down_y+self.canvas.canvasy(0))/app.zoom,
-                        (left_mouse_up_x+self.canvas.canvasx(0))/app.zoom, 
-                        (left_mouse_up_y+self.canvas.canvasy(0))/app.zoom)
+            self.corp_img((left_mouse_down_x+self.canvas.canvasx(0))/app.zoom, 
+                          (left_mouse_down_y+self.canvas.canvasy(0))/app.zoom,
+                          (left_mouse_up_x+self.canvas.canvasx(0))/app.zoom, 
+                          (left_mouse_up_y+self.canvas.canvasy(0))/app.zoom)
 
             #seat number + 1 automatically
             seat_number_entry.delete(0,'end')
@@ -1079,7 +1016,7 @@ class Tool():
                                                     (moving_mouse_y+self.canvas.canvasy(0)), 
                                                     outline='red')
 
-    def corp_img(self,source_path, save_path, x_begin, y_begin, x_end, y_end):
+    def corp_img(self, x_begin, y_begin, x_end, y_end):
         if x_begin < x_end:
             min_x = x_begin
             max_x = x_end
@@ -1101,7 +1038,7 @@ class Tool():
         bounding_box_list[-1].append((max_x,min_y))
         bounding_box_list[-1].append(seat_floor)
         bounding_box_list[-1].append(camera_number)
-        bounding_box_list[-1].append(None)
+        bounding_box_list[-1].append(original_table_entry.get())
 
         #update listbox
         self.listbox_update()
@@ -1153,6 +1090,7 @@ class Tool():
         sole_rectangle =[]
 
     def listbox_update(self):
+        print(bounding_box_list)
         bounding_box_listbox.insert(0, "  file type   |    name    |   original t")
         bounding_box_listbox.delete(1,'end')
         for box in bounding_box_list:
@@ -1229,8 +1167,8 @@ class Zoom_Advanced(ttk.Frame):
         self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
         self.show_image()
 
-    def img_path(self):
-        return self.image.filename
+    def ip_img(self):
+        return self.image
 
     def scroll_y(self, *args, **kwargs):
         ''' Scroll canvas vertically and redraw the image '''
@@ -1310,13 +1248,14 @@ def crop_with_argwhere(image):
     
     # Coordinates of non-black pixels.
     coords = np.argwhere(mask)
-    
+
     # Bounding box of non-black pixels.
-    x0, y0 = coords.min(axis=0)
-    x1, y1 = coords.max(axis=0) + 1   # slices are exclusive at the top
+    x0, y0, color = coords.min(axis=0)
+    x1, y1, color = coords.max(axis=0) + 1   # slices are exclusive at the top
     
     # Get the contents of the bounding box.
     cropped = image[x0:x1, y0:y1]
+
     return cropped
 
 def openSetupImage(): #select an image to setup bounding box
@@ -1463,7 +1402,7 @@ if __name__ == '__main__':
     #? ============ /frame 3 ===========
     
     tool.change_tool("point")
-    ip_entry.insert(0,"192.168.137.211")
+    ip_entry.insert(0,"192.168.43.1")
     original_table_entry.insert(0,"1")
     seat_number_entry.insert(0,"1")
     camera_entry.insert(0,"1")
