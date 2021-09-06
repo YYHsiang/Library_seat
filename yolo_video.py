@@ -184,8 +184,11 @@ class yolo_detect():
     def __init__(self):
         self.object = Object_detect('none')
         yolo=YOLO()
+
         if ip_entry.get() == "":
             messagebox.showerror("Error","Please enter Video Path")
+        if bounding_box_list == []:
+            messagebox.showerror("Error","Bounding Box is Empty")
         else:
             pretime = 0
             self.video = cv2.VideoCapture('rtsp://'+ip_entry.get()+':8080/h264_pcm.sdp')
@@ -197,7 +200,8 @@ class yolo_detect():
                     (self.grabbed, self.frame) = self.video.read()
 
                     image=Image.fromarray(self.frame)
-                    image.show()
+                    #image.show()
+
                     #!!!!! object detect
                     for table in large_table_list:
                         # crop the image
@@ -237,6 +241,7 @@ class yolo_detect():
                                     objects.remove(ob)
                                             
                         print("\n--OBJECT DETECT DONE--")
+
                         #! yolo detect
                         for seats in bounding_box_list:
                             if seats[BBL_FILE_TYPE_INDEX] == 'seat':
