@@ -20,7 +20,7 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
 from numpy.lib.arraypad import pad
-#from yolo import YOLO
+from yolo import YOLO
 from yolo3.utils import rand
 from PIL import Image, ImageTk, ImageDraw
 import requests
@@ -183,7 +183,7 @@ class Object_detect():
 class yolo_detect():
     def __init__(self):
         self.object = Object_detect('none')
-        #yolo=YOLO()
+        yolo=YOLO()
         if ip_entry.get() == "":
             messagebox.showerror("Error","Please enter Video Path")
         else:
@@ -245,16 +245,15 @@ class yolo_detect():
                                 img = self.object.PIL2CV(img)  #change format from Pillow Image to OpenCV image
                                 img = crop_with_argwhere(img) # crop black area
 
-                                #r_image, people_num = yolo.detect_image(img)
-                                #bounding_box_list[i][5]=people_num
+                                r_image, people_num = yolo.detect_image(img)
                                 
-                                #postdata_toserver["seat"]=bounding_box_list[i][BBL_SEAT_NAME_INDEX]
-                                #postdata_toserver["location"]=bounding_box_list[i][BBL_LOCATION_INDEX]
-                                #postdata_toserver["camera"]=bounding_box_list[i][BBL_CAM_NAME_INDEX]
-                                #postdata_toserver["occupy"]=str(people_num)
-                                #r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
+                                postdata_toserver["seat"]=seats[BBL_SEAT_NAME_INDEX]
+                                postdata_toserver["location"]=seats[BBL_LOCATION_INDEX]
+                                postdata_toserver["camera"]=seats[BBL_CAM_NAME_INDEX]
+                                postdata_toserver["occupy"]=str(people_num)
+                                r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
                     
-            #yolo.close_session()
+            yolo.close_session()
 
 class DB_4point_xy():
     def __init__(self):
