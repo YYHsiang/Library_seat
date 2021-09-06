@@ -47,7 +47,7 @@
     chatSocket.onmessage = function(e) {
         const data = JSON.parse(e.data);
         document.querySelector('#available_seat').innerText =data.available_seat;
-        if(data.occupy=="1"){
+        if(data.occupy>="1"){
             document.getElementById(data.seat_number).className = "card text-white bg-secondary mb-3"
         }
         else{
