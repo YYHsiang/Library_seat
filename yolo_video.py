@@ -223,6 +223,8 @@ class yolo_detect():
                             print("\n--OBJECT DETECTED--")
                             #get all seats related to current table
                             related_seats = []
+                            occupied_table = [] # store the table which is occupied
+
                             for seats in bounding_box_list:
                                 if seats[BBL_FILE_TYPE_INDEX] == 'table' and seats[BBL_ORIGINAL_T_INDEX] == table[LTL_TABLE_NAME_INDEX]:
                                     related_seats.append(seats)
@@ -235,6 +237,9 @@ class yolo_detect():
                                         print("object in seat: " + str(seat[BBL_SEAT_NAME_INDEX]))
                                         remove_list.append(object1)
 
+                                        occupied_table.append([])
+                                        occupied_table[-1].append(seat[BBL_SEAT_NAME_INDEX]) # append table name
+
                                 # remove the object that has been located
                                 for ob in remove_list:
                                     print("rm_list: " + str(ob))
@@ -242,23 +247,28 @@ class yolo_detect():
                                             
                         print("\n--OBJECT DETECT DONE--")
 
-                        #! yolo detect
-                        for seats in bounding_box_list:
-                            if seats[BBL_FILE_TYPE_INDEX] == 'seat':
-                                print(seats)
-                                img = crop_polygon('', (seats[BBL_PT1_INDEX], seats[BBL_PT2_INDEX], seats[BBL_PT3_INDEX], seats[BBL_PT4_INDEX]), image=image)
-                                img = self.object.PIL2CV(img)  #change format from Pillow Image to OpenCV image
-                                img = crop_with_argwhere(img) # crop black area
+                    #! yolo detect
+                    for seats in bounding_box_list:
+                        if seats[BBL_FILE_TYPE_INDEX] == 'seat':
+                            print(seats)
+                            img = crop_polygon('', (seats[BBL_PT1_INDEX], seats[BBL_PT2_INDEX], seats[BBL_PT3_INDEX], seats[BBL_PT4_INDEX]), image=image)
+                            img = self.object.PIL2CV(img)  #change format from Pillow Image to OpenCV image
+                            img = crop_with_argwhere(img) # crop black area
 
-                                r_image, people_num = yolo.detect_image(img)
-                                
-                                postdata_toserver["seat"]=seats[BBL_SEAT_NAME_INDEX]
-                                postdata_toserver["location"]=seats[BBL_LOCATION_INDEX]
-                                postdata_toserver["camera"]=seats[BBL_CAM_NAME_INDEX]
-                                postdata_toserver["occupy"]=str(people_num)
-                                r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
+                            r_image, people_num = yolo.detect_image(img)
+
+                            # if the table related to this seat is occupied then  people_num must >= 1
+                            for table in occupied_table:
+                                if table == seat[BBL_SEAT_NAME_INDEX]:
+                                    people_num += 1
+                            
+                            postdata_toserver["seat"]=seats[BBL_SEAT_NAME_INDEX]
+                            postdata_toserver["location"]=seats[BBL_LOCATION_INDEX]
+                            postdata_toserver["camera"]=seats[BBL_CAM_NAME_INDEX]
+                            postdata_toserver["occupy"]=str(people_num)
+                            r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
                     
-            yolo.close_session()
+                    yolo.close_session()
 
 class DB_4point_xy():
     def __init__(self):
@@ -1072,7 +1082,7 @@ class Tool():
                                                                 table[LTL_PT2_INDEX][0], table[LTL_PT2_INDEX][1], 
                                                                 table[LTL_PT3_INDEX][0], table[LTL_PT3_INDEX][1], 
                                                                 table[LTL_PT4_INDEX][0], table[LTL_PT4_INDEX][1], 
-                                                                outline='black', fill=''))
+                                                                outline='black', fill='',width= 3))
                 bounding_box_text.append(self.canvas.create_text(table[LTL_PT2_INDEX][0], table[LTL_PT2_INDEX][1],  text=box[BBL_ORIGINAL_T_INDEX], fill= 'black', anchor="nw", font=("Helvetica", 15)))
                 bounding_box_text.append(self.canvas.create_rectangle(self.canvas.bbox(bounding_box_text[-1]),fill="white"))
                 self.canvas.tag_lower(bounding_box_text[-1],bounding_box_text[-2])
