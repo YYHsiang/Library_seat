@@ -1,3 +1,4 @@
+from django.http import HttpResponse
 from django.shortcuts import render
 from .models import Camera_Data, Location, Seat, Occupy_History
 from ip_camera.models import Camera
@@ -14,7 +15,13 @@ def location(response, location_name):
     try:
         location = Location.objects.get(name=location_name)
 
-        return render(response, "main/location.html", { "location_list":location_list, "location":location})
+        #count the available seats
+        available_seat=0
+        for seat in location.seat_set.all():
+            if seat.occupy == False:
+                available_seat +=1
+
+        return render(response, "main/location.html", { "location_list":location_list, "location":location, "available_seat": available_seat})
 
     except Location.DoesNotExist:
         return render(response, "main/error_404.html", {})
@@ -24,13 +31,12 @@ def create(response):
         #obtain request data
         seat_number=response.POST.get('seat',0)
         camera_name = response.POST.get('camera',0)
-        floor = (response.POST.get('location',0))
+        floor = response.POST.get('location',0)
         occupy = response.POST.get('occupy',0)
 
-        seat_temp = Seat.objects.filter(seat_number= seat_number)
-        camera_temp = Camera.objects.filter(name= camera_name)
-        print(seat_temp)
-        print(camera_temp)
+        seat_temp = Seat.objects.get(seat_number= seat_number)
+        camera_temp = Camera.objects.get(name= camera_name)
+
         # check if Seat is already exist
         if seat_temp is None:
             print("Seat doesnt exist")
@@ -42,82 +48,59 @@ def create(response):
             c_data.camera = Camera.objects.get(name= camera_name)
             c_data.occupy = occupy
             c_data.save()
-            print("new Camera data: " + str(c_data))
 
             #check new camera send data to current seat
-            if seat_temp.camera.count() == 0:
-                seat_temp.camera.add(camera_temp)
-                seat_temp.save()
-                print("new camera added")
-            elif camera_temp not in seat_temp.camera.all():
+            if camera_temp not in seat_temp.camera.all():
                 seat_temp.camera.add(camera_temp)
                 seat_temp.save()
                 print("new camera added")
 
             # add data to current Seat
             ifnew = False
-            for data in seat_temp.camera_data.all():
-                print("Seat data" + str(data))
-                if data.camera == camera_temp:
-                    ifnew = False
-                    pass
-                else:
-                    ifnew = True
-
-                if ifnew:
+            if not seat_temp.camera_data.all().exists():
+                seat_temp.camera_data.add(c_data)
+            else:
+                for data in seat_temp.camera_data.all():
+                    # remove old data from same camera
+                    if data.camera == camera_temp:
+                        data.delete()
                     seat_temp.camera_data.add(c_data)
-                    seat_temp.save()
+            print(seat_temp.camera_data.all())
 
             #check full camera data
             occupy_count = 0
-            if len(seat_temp.camera_data.all()) == len(seat_temp.camera.all()):
+            if seat_temp.camera_data.all().count() == seat_temp.camera.all().count():
                 for data in seat_temp.camera_data.all():
-                    if data.occupy >= "1":
+                    if data.occupy == 1:
                         occupy_count += 1
 
                 # majority decision
                 if occupy_count > len(seat_temp.camera.all())/2 :
                     seat_temp.occupy = True
+                    print("seat_number: " + str(seat_temp.seat_number) + " occupy: " + str(seat_temp.occupy))
                 else:
                     seat_temp.occupy = False
-
+                
                 seat_temp.camera_data.clear()
                 seat_temp.save()
 
-        '''#remove same seat_number
-        rows = Seat.objects.filter(seat_number=seat_number)
-        for r in rows: 
-            r.delete() 
+                #count the available seats
+                location = Location.objects.get(name=floor)
+                available_seat=0
+                for seat in location.seat_set.all():
+                    if seat.occupy == False:
+                        available_seat +=1
 
-        #add new seat_number item
-        s = Seat()
-        s.location = Location.objects.get(name=floor)
-        s.seat_number=seat_number
-        s.camera_number=0
-        s.seat_position_x = (int(seat_number)%10) * 70
-        s.seat_position_y = 0
-        if occupy >"0":
-            s.occupy=True
-        else:
-            s.occupy=False
-        s.save()'''
-
-        #count the available seats
-        location = Location.objects.get(name=floor)
-        available_seat=0
-        for seat in location.seat_set.all():
-            if seat.occupy == False:
-                available_seat +=1
-
-        #send data to website
-        layer = get_channel_layer()
-        async_to_sync(layer.group_send)(
-            'chat',
-            {
-                'type': 'available_seat',
-                'available_seat': str(available_seat),
-                'seat_number': seat_number,
-                'occupy': str(occupy)
-            }
-        )
-    
+                #send data to website
+                layer = get_channel_layer()
+                async_to_sync(layer.group_send)(
+                    'chat',
+                    {
+                        'type': 'available_seat',
+                        'available_seat': str(available_seat),
+                        'seat_number': seat_number,
+                        'occupy': str(occupy)
+                    }
+                )
+        
+    return HttpResponse('Mom, I am here!')
