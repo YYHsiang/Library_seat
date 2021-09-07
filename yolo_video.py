@@ -963,17 +963,17 @@ class Tool():
         if point_cnt == 0:
             point_bounding_box_list = []
             sole_polygon_list = []
-            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0))/app.zoom,(event.y+self.canvas.canvasy(0))/app.zoom))
+            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0)),(event.y+self.canvas.canvasy(0))))
             #draw polygon
-            sole_polygon_list.append((event.x+self.canvas.canvasx(0))/app.zoom)
-            sole_polygon_list.append((event.y+self.canvas.canvasy(0))/app.zoom)
+            sole_polygon_list.append((event.x+self.canvas.canvasx(0)))
+            sole_polygon_list.append((event.y+self.canvas.canvasy(0)))
             point_cnt += 1
 
         elif point_cnt < 4:
-            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0))/app.zoom,(event.y+self.canvas.canvasy(0))/app.zoom))
+            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0)),(event.y+self.canvas.canvasy(0))))
             #draw polygon
-            sole_polygon_list.append((event.x+self.canvas.canvasx(0))/app.zoom)
-            sole_polygon_list.append((event.y+self.canvas.canvasy(0))/app.zoom)
+            sole_polygon_list.append((event.x+self.canvas.canvasx(0)))
+            sole_polygon_list.append((event.y+self.canvas.canvasy(0)))
 
             if point_cnt == 3:
                 if sole_polygon is not None:
