@@ -183,6 +183,7 @@ class Object_detect():
 class yolo_detect():
     def __init__(self):
         self.object = Object_detect('none')
+        self.occupied_table = [] # store the table which is occupied
         yolo=YOLO()
 
         if ip_entry.get() == "":
@@ -209,7 +210,7 @@ class yolo_detect():
 
                         #convert image format frome PIL.Image to openCV
                         img_now_croped = self.object.PIL2CV(img_now_croped)
-                        img_before = self.object.PIL2CV(table[LTL_IMAGE_INDEX])
+                        img_before = self.object.PIL2CV(table[LTL_IMAGE_INDEX].copy())
 
                         # check for difference and get the object
                         objects = self.object.difference(img_before, img_now_croped)
@@ -223,22 +224,22 @@ class yolo_detect():
                             print("\n--OBJECT DETECTED--")
                             #get all seats related to current table
                             related_seats = []
-                            occupied_table = [] # store the table which is occupied
+                            
 
                             for seats in bounding_box_list:
                                 if seats[BBL_FILE_TYPE_INDEX] == 'table' and seats[BBL_ORIGINAL_T_INDEX] == table[LTL_TABLE_NAME_INDEX]:
                                     related_seats.append(seats)
 
-                            for seat in related_seats:
+                            for related_seat in related_seats:
                                 # detect point in which table
                                 remove_list =[] #contain the object that has been located
                                 for object1 in objects:
-                                    if self.object.Pts_in_polygon(object1, [seat[BBL_PT1_INDEX], seat[BBL_PT2_INDEX],seat[BBL_PT3_INDEX],seat[BBL_PT4_INDEX]]):
-                                        print("object in seat: " + str(seat[BBL_SEAT_NAME_INDEX]))
+                                    if self.object.Pts_in_polygon(object1, [related_seat[BBL_PT1_INDEX], related_seat[BBL_PT2_INDEX],related_seat[BBL_PT3_INDEX],related_seat[BBL_PT4_INDEX]]):
+                                        print("object in seat: " + str(related_seat[BBL_SEAT_NAME_INDEX]))
                                         remove_list.append(object1)
 
-                                        occupied_table.append([])
-                                        occupied_table[-1].append(seat[BBL_SEAT_NAME_INDEX]) # append table name
+                                        self.occupied_table.append([])
+                                        self.occupied_table[-1].append(related_seat[BBL_SEAT_NAME_INDEX]) # append table name
 
                                 # remove the object that has been located
                                 for ob in remove_list:
@@ -254,21 +255,24 @@ class yolo_detect():
                             img = crop_polygon('', (seats[BBL_PT1_INDEX], seats[BBL_PT2_INDEX], seats[BBL_PT3_INDEX], seats[BBL_PT4_INDEX]), image=image)
                             img = self.object.PIL2CV(img)  #change format from Pillow Image to OpenCV image
                             img = crop_with_argwhere(img) # crop black area
+                            img = self.object.CV2PIL(img)
 
                             r_image, people_num = yolo.detect_image(img)
 
                             # if the table related to this seat is occupied then  people_num must >= 1
-                            for table in occupied_table:
-                                if table == seat[BBL_SEAT_NAME_INDEX]:
+                            for table in self.occupied_table:
+                                if table[0] == seats[BBL_SEAT_NAME_INDEX]:
                                     people_num += 1
                             
                             postdata_toserver["seat"]=seats[BBL_SEAT_NAME_INDEX]
                             postdata_toserver["location"]=seats[BBL_LOCATION_INDEX]
                             postdata_toserver["camera"]=seats[BBL_CAM_NAME_INDEX]
                             postdata_toserver["occupy"]=str(people_num)
-                            r=requests.post('http://127.0.0.1:8000/create/', data = postdata_toserver)
+                            r=requests.post('http://192.168.43.198:8000/create/', data = postdata_toserver)
+                            print(postdata_toserver)
                     
-                    yolo.close_session()
+                    #yolo.close_session()
+                    self.occupied_table = []
 
 class DB_4point_xy():
     def __init__(self):
