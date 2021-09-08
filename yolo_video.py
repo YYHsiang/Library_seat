@@ -1176,14 +1176,17 @@ class Zoom_Advanced(ttk.Frame):
         self.zoom=1
         
     def get_ip(self):
-        cap = cv2.VideoCapture('rtsp://'+ip_entry.get()+':8080/h264_pcm.sdp')
-        ret, frame = cap.read()
-        frame = Image.fromarray(cv2.cvtColor(frame,cv2.COLOR_BGR2RGB))
-        self.image = frame  # open image
-        self.width, self.height = self.image.size
-        # Put image into container rectangle and use it to set proper coordinates to the image
-        self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
-        self.show_image()
+        try:
+            cap = cv2.VideoCapture('rtsp://'+ip_entry.get())
+            ret, frame = cap.read()
+            frame = Image.fromarray(cv2.cvtColor(frame,cv2.COLOR_BGR2RGB))
+            self.image = frame  # open image
+            self.width, self.height = self.image.size
+            # Put image into container rectangle and use it to set proper coordinates to the image
+            self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
+            self.show_image()
+        except:
+            messagebox.showerror("Error", "Cannot Connect")
 
     def ip_img(self):
         return self.image
@@ -1420,10 +1423,6 @@ if __name__ == '__main__':
     #? ============ /frame 3 ===========
     
     tool.change_tool("point")
-    ip_entry.insert(0,"192.168.43.1")
-    original_table_entry.insert(0,"1")
-    seat_number_entry.insert(0,"1")
-    camera_entry.insert(0,"1")
-    floor_entry.insert(0,"1")
+    
 
     win.mainloop()
