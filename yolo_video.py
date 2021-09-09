@@ -27,6 +27,9 @@ import requests
 import cv2
 import sqlite3
 
+# Debug mode
+DEBUG_MODE = False
+
 # store mouse position
 left_mouse_down_x = 0
 left_mouse_down_y = 0
@@ -125,7 +128,7 @@ class Object_detect():
         contours = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = contours[0] if len(contours) == 2 else contours[1]
 
-        temp =[]
+        temp =[1]
         for c in contours:
             area = cv2.contourArea(c)
             temp.append(area)
@@ -152,8 +155,8 @@ class Object_detect():
         for cnt in thresh_mask_gray_cnt:
             x,y,w,h = cv2.boundingRect(cnt)
             cv2.rectangle(after, (x, y), (x + w, y + h), (36,255,12), 2)
-            object_position.append(min(cnt[:][:][0]).tolist()) # convert numpy array to list and append to object_position list
-            print(min(cnt[:][:][0])) 
+            object_position.append(tuple(cnt[cnt[:, :, 1].argmax()][0]).tolist()) # convert numpy array to list and append to object_position list
+            print(tuple(cnt[cnt[:, :, 1].argmax()][0])) 
 
         '''cv2.namedWindow("after", cv2.WINDOW_NORMAL)
         cv2.imshow('after',after)
@@ -170,6 +173,11 @@ class Object_detect():
         cv2.waitKey(0)
         cv2.destroyAllWindows()
         '''
+        if DEBUG_MODE:
+            cv2.namedWindow("thresh_mask_gray", cv2.WINDOW_NORMAL)
+            cv2.imshow('thresh_mask_gray',thresh_mask_gray)
+            cv2.waitKey(1000)
+            cv2.destroyWindow('thresh_mask_gray')
         return object_position
 
     def Pts_in_polygon(self, point:tuple or list, polygon_points:list or tuple):
@@ -183,28 +191,31 @@ class Object_detect():
 class yolo_detect():
     def __init__(self):
         self.object = Object_detect('none')
-        self.occupied_table = [] # store the table which is occupied
-        yolo=YOLO()
+        self.occupied_table = [] # store the table which is occupied      
 
         if ip_entry.get() == "":
             messagebox.showerror("Error","Please enter Video Path")
         if bounding_box_list == []:
             messagebox.showerror("Error","Bounding Box is Empty")
         else:
+            yolo=YOLO()
+
             pretime = 0
-            self.video = cv2.VideoCapture('rtsp://'+ip_entry.get()+':8080/h264_pcm.sdp')
+            self.video = cv2.VideoCapture('rtsp://'+ip_entry.get())
             print("--CAMERA CONNECTED--")
             while True:
-                if time.time() -  pretime > 10:
+                if time.time() -  pretime > 15:
                     pretime = time.time()
-                    self.video = cv2.VideoCapture('rtsp://'+ip_entry.get()+':8080/h264_pcm.sdp')
+                    self.video = cv2.VideoCapture('rtsp://'+ip_entry.get())
                     (self.grabbed, self.frame) = self.video.read()
 
                     image=Image.fromarray(self.frame)
                     #image.show()
 
+                    if DEBUG_MODE:
+                        print(large_table_list)
                     #!!!!! object detect
-                    for table in large_table_list:
+                    for table in large_table_list:                       
                         # crop the image
                         img_now_croped = crop_polygon('', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]), image=image)
 
@@ -221,7 +232,7 @@ class yolo_detect():
                             print("--No OBJECT--")
                         #if object is detected
                         else:
-                            print("\n--OBJECT DETECTED--")
+                            print("--OBJECT DETECTED--")
                             #get all seats related to current table
                             related_seats = []
                             
@@ -246,9 +257,9 @@ class yolo_detect():
                                     print("rm_list: " + str(ob))
                                     objects.remove(ob)
                                             
-                        print("\n--OBJECT DETECT DONE--")
 
                     #! yolo detect
+                    print("-- YOLO --")
                     for seats in bounding_box_list:
                         if seats[BBL_FILE_TYPE_INDEX] == 'seat':
                             print(seats)
@@ -258,6 +269,13 @@ class yolo_detect():
                             img = self.object.CV2PIL(img)
 
                             r_image, people_num = yolo.detect_image(img)
+
+                            if DEBUG_MODE:
+                                r_image = self.object.PIL2CV(r_image)
+                                cv2.namedWindow("YOLO", cv2.WINDOW_NORMAL)
+                                cv2.imshow('YOLO',r_image)
+                                cv2.waitKey(1000)
+                                cv2.destroyWindow('YOLO')
 
                             # if the table related to this seat is occupied then  people_num must >= 1
                             for table in self.occupied_table:
@@ -269,7 +287,7 @@ class yolo_detect():
                             postdata_toserver["camera"]=seats[BBL_CAM_NAME_INDEX]
                             postdata_toserver["occupy"]=str(people_num)
                             r=requests.post('http://192.168.43.198:8000/create/', data = postdata_toserver)
-                            print(postdata_toserver)
+                            print("Django Data: " + str(postdata_toserver) + "\n\n")
                     
                     #yolo.close_session()
                     self.occupied_table = []
@@ -967,14 +985,14 @@ class Tool():
         if point_cnt == 0:
             point_bounding_box_list = []
             sole_polygon_list = []
-            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0)),(event.y+self.canvas.canvasy(0))))
+            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0))/app.zoom,(event.y+self.canvas.canvasy(0))/app.zoom))
             #draw polygon
             sole_polygon_list.append((event.x+self.canvas.canvasx(0)))
             sole_polygon_list.append((event.y+self.canvas.canvasy(0)))
             point_cnt += 1
 
         elif point_cnt < 4:
-            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0)),(event.y+self.canvas.canvasy(0))))
+            point_bounding_box_list.append(((event.x+self.canvas.canvasx(0))/app.zoom,(event.y+self.canvas.canvasy(0))/app.zoom))
             #draw polygon
             sole_polygon_list.append((event.x+self.canvas.canvasx(0)))
             sole_polygon_list.append((event.y+self.canvas.canvasy(0)))
@@ -1251,7 +1269,7 @@ def crop_polygon(img_path:str, point:list, **kwargs):
     else:
         image = Image.open(img_path)
     xy = point
-    print("xy: " + str(xy))
+    #print("xy: " + str(xy))
 
     mask = Image.new("L", image.size, 0)
     draw = ImageDraw.Draw(mask)
