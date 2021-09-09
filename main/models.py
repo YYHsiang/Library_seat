@@ -12,7 +12,7 @@ class Location(models.Model):
 
 class Camera_Data(models.Model):
     camera = models.ForeignKey(Camera, on_delete=models.CASCADE)
-    occupy = models.BooleanField()
+    occupy = models.IntegerField()
 
 class Seat(models.Model):
     location = models.ForeignKey(Location, on_delete=models.CASCADE)

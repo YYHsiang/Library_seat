@@ -32,11 +32,11 @@ def create(response):
         seat_number=response.POST.get('seat',0)
         camera_name = response.POST.get('camera',0)
         floor = response.POST.get('location',0)
-        occupy = response.POST.get('occupy',0)
+        occupy = int(response.POST.get('occupy',0))
 
         seat_temp = Seat.objects.get(seat_number= seat_number)
         camera_temp = Camera.objects.get(name= camera_name)
-
+        print("seat_number: "+seat_number+", camera_name: "+camera_name+", occupy:"+str(occupy))
         # check if Seat is already exist
         if seat_temp is None:
             print("Seat doesnt exist")
@@ -65,13 +65,14 @@ def create(response):
                     if data.camera == camera_temp:
                         data.delete()
                     seat_temp.camera_data.add(c_data)
-            print(seat_temp.camera_data.all())
+            #print(seat_temp.camera_data.all())
 
             #check full camera data
             occupy_count = 0
+            print("camera_data_number: "+str(seat_temp.camera_data.all().count()))
             if seat_temp.camera_data.all().count() == seat_temp.camera.all().count():
                 for data in seat_temp.camera_data.all():
-                    if data.occupy == 1:
+                    if data.occupy >= 1:
                         occupy_count += 1
 
                 # majority decision
@@ -80,9 +81,13 @@ def create(response):
                     print("seat_number: " + str(seat_temp.seat_number) + " occupy: " + str(seat_temp.occupy))
                 else:
                     seat_temp.occupy = False
-                
-                seat_temp.camera_data.clear()
                 seat_temp.save()
+                
+                #seat_temp.camera_data.clear()
+                data = Camera_Data.objects.all()
+                data.delete()
+                print(seat_temp.occupy)
+                
 
                 #count the available seats
                 location = Location.objects.get(name=floor)
