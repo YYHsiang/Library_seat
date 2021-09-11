@@ -4,6 +4,8 @@ from .models import Camera_Data, Location, Seat, Occupy_History
 from ip_camera.models import Camera
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+# time
+from django.utils import timezone
 
 # Create your views here.
 def  home(response):
@@ -34,9 +36,9 @@ def create(response):
         floor = response.POST.get('location',0)
         occupy = int(response.POST.get('occupy',0))
 
-        seat_temp = Seat.objects.get(seat_number= seat_number)
+        seat_temp = Seat.objects.get(seat_number= seat_number, location= Location.objects.get(name= floor))
         camera_temp = Camera.objects.get(name= camera_name)
-        print("seat_number: "+seat_number+", camera_name: "+camera_name+", occupy:"+str(occupy))
+        print("seat_number: "+seat_number+", camera_name: "+camera_name+", occupy: "+str(occupy))
         # check if Seat is already exist
         if seat_temp is None:
             print("Seat doesnt exist")
@@ -69,26 +71,51 @@ def create(response):
 
             #check full camera data
             occupy_count = 0
-            print("camera_data_number: "+str(seat_temp.camera_data.all().count()))
             if seat_temp.camera_data.all().count() == seat_temp.camera.all().count():
                 for data in seat_temp.camera_data.all():
                     if data.occupy >= 1:
                         occupy_count += 1
+                
+                
 
                 # majority decision
                 if occupy_count > len(seat_temp.camera.all())/2 :
                     seat_temp.occupy = True
-                    print("seat_number: " + str(seat_temp.seat_number) + " occupy: " + str(seat_temp.occupy))
+                    
+                    # create related occupy history
+                    try:
+                        # get the latest occupy history related to current seat if it exists
+                        history_previous = Occupy_History.objects.filter(seat = Seat.objects.get(seat_number= seat_temp.seat_number, location = Location.objects.get(name=floor))).last()
+                        
+                        # if the latest history is already had a time period the create a new occupy history
+                        if history_previous.start_time != history_previous.end_time:
+                            history = Occupy_History()
+                            history.seat = Seat.objects.get(seat_number = seat_temp.seat_number, location = Location.objects.get(name=floor))
+                            history.start_time = timezone.now()
+                            history.end_time = timezone.now()
+                            history.save()
+                    except:
+                        history = Occupy_History()
+                        history.seat = Seat.objects.get(seat_number = seat_temp.seat_number, location = Location.objects.get(name=floor))
+                        history.start_time = timezone.now()
+                        history.end_time = timezone.now()
+                        history.save()
                 else:
                     seat_temp.occupy = False
+                    try:
+                        # get the latest occupy history related to current seat if it exists
+                        history_previous = Occupy_History.objects.filter(seat = Seat.objects.get(seat_number= seat_temp.seat_number, location = Location.objects.get(name=floor))).last()
+                        if history_previous.start_time == history_previous.end_time:
+                            history_previous.end_time = timezone.now()
+                            history_previous.save()
+                    except:
+                        pass
                 seat_temp.save()
                 
                 #seat_temp.camera_data.clear()
                 data = Camera_Data.objects.all()
                 data.delete()
-                print(seat_temp.occupy)
                 
-
                 #count the available seats
                 location = Location.objects.get(name=floor)
                 available_seat=0
