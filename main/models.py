@@ -12,12 +12,12 @@ class Location(models.Model):
 
 class Camera_Data(models.Model):
     camera = models.ForeignKey(Camera, on_delete=models.CASCADE)
-    occupy = models.BooleanField()
+    occupy = models.IntegerField()
 
 class Seat(models.Model):
     location = models.ForeignKey(Location, on_delete=models.CASCADE)
-    camera = models.ManyToManyField(Camera) #every seat is capture by multiple cameras
-    camera_data = models.ManyToManyField(Camera_Data) # data from each camera
+    camera = models.ManyToManyField(Camera, blank=True) #every seat is capture by multiple cameras
+    camera_data = models.ManyToManyField(Camera_Data, blank=True) # data from each camera
 
     seat_number = models.IntegerField()
     seat_position_x = models.FloatField(max_length=200)
