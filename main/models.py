@@ -24,7 +24,7 @@ class Seat(models.Model):
     seat_position_y = models.FloatField(max_length=200)
     occupy = models.BooleanField()
 
-class Occupy_History(models.Model):
+class OccupyHistory(models.Model):
     seat = models.ForeignKey(Seat, on_delete=models.CASCADE)
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()

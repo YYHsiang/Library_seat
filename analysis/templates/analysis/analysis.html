@@ -13,7 +13,9 @@
             success: function(data){
                 location = data.location
                 location_seat_cnt = data.location_seat_cnt
+                location_average_time = data.location_average_time
                 setChart()
+                setfloor_period_occupy_Chart()
                 console.log(data)
             },
             error: function(error_data){
@@ -25,12 +27,46 @@
         function setChart(){
             var ctx = document.getElementById('location_seat_Chart').getContext('2d');
             var myChart = new Chart(ctx, {
-                type: 'bar',
+                type: 'polarArea',
                 data: {
                     labels: location,
                     datasets: [{
                         label: 'number of Seats',
                         data: location_seat_cnt,
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.2)',
+                            'rgba(54, 162, 235, 0.2)',
+                            'rgba(255, 206, 86, 0.2)',
+                            'rgba(75, 192, 192, 0.2)',
+                            'rgba(153, 102, 255, 0.2)',
+                            'rgba(255, 159, 64, 0.2)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)',
+                            'rgba(255, 159, 64, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    
+                }
+            });
+        }
+        
+        function setfloor_period_occupy_Chart(){
+            var ctx = document.getElementById('floor_period_occupy_Chart').getContext('2d');
+            var myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: location,
+                    datasets: [{
+                        label: 'Agerage Occupy time (min)',
+                        data: location_average_time,
                         backgroundColor: [
                             'rgba(255, 99, 132, 0.2)',
                             'rgba(54, 162, 235, 0.2)',
@@ -59,15 +95,18 @@
                 }
             });
         }
-        
-        
 
     {% endblock jquery %}
 </script>
 
 {% block content %}
     <h2>Analysis</h2>
-    <canvas id="location_seat_Chart" width="400" height="400"></canvas>
-    <canvas id="seat_occupy_Chart" width="400" height="400"></canvas>
-    
+    <div class= "row">
+        <div class= "col">
+            <canvas id="location_seat_Chart" width="400" height="400"></canvas>
+        </div>
+        <div class= "col">
+            <canvas id="floor_period_occupy_Chart" width="400" height="400"></canvas>
+        </div>
+    </div>
 {% endblock content %}

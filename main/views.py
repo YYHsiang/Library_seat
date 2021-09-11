@@ -1,6 +1,6 @@
 from django.http import HttpResponse
 from django.shortcuts import render
-from .models import Camera_Data, Location, Seat, Occupy_History
+from .models import Camera_Data, Location, Seat, OccupyHistory
 from ip_camera.models import Camera
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -85,17 +85,17 @@ def create(response):
                     # create related occupy history
                     try:
                         # get the latest occupy history related to current seat if it exists
-                        history_previous = Occupy_History.objects.filter(seat = Seat.objects.get(seat_number= seat_temp.seat_number, location = Location.objects.get(name=floor))).last()
+                        history_previous = OccupyHistory.objects.filter(seat = Seat.objects.get(seat_number= seat_temp.seat_number, location = Location.objects.get(name=floor))).last()
                         
                         # if the latest history is already had a time period the create a new occupy history
                         if history_previous.start_time != history_previous.end_time:
-                            history = Occupy_History()
+                            history = OccupyHistory()
                             history.seat = Seat.objects.get(seat_number = seat_temp.seat_number, location = Location.objects.get(name=floor))
                             history.start_time = timezone.now()
                             history.end_time = timezone.now()
                             history.save()
                     except:
-                        history = Occupy_History()
+                        history = OccupyHistory()
                         history.seat = Seat.objects.get(seat_number = seat_temp.seat_number, location = Location.objects.get(name=floor))
                         history.start_time = timezone.now()
                         history.end_time = timezone.now()
@@ -104,7 +104,7 @@ def create(response):
                     seat_temp.occupy = False
                     try:
                         # get the latest occupy history related to current seat if it exists
-                        history_previous = Occupy_History.objects.filter(seat = Seat.objects.get(seat_number= seat_temp.seat_number, location = Location.objects.get(name=floor))).last()
+                        history_previous = OccupyHistory.objects.filter(seat = Seat.objects.get(seat_number= seat_temp.seat_number, location = Location.objects.get(name=floor))).last()
                         if history_previous.start_time == history_previous.end_time:
                             history_previous.end_time = timezone.now()
                             history_previous.save()
