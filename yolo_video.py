@@ -28,7 +28,7 @@ import cv2
 import sqlite3
 
 # Debug mode
-DEBUG_MODE = False
+DEBUG_MODE = True
 
 # store mouse position
 left_mouse_down_x = 0
@@ -88,7 +88,7 @@ file_types = [
 class Object_detect():
     def __init__(self, video_path:str):
         self.video_path = video_path
-        self.EROSION_FACTOR = 3
+        self.EROSION_FACTOR = 5
 
     def PIL2CV(self, image):  
         img = cv2.cvtColor(np.asarray(image),cv2.COLOR_RGB2BGR)
@@ -155,7 +155,7 @@ class Object_detect():
         for cnt in thresh_mask_gray_cnt:
             x,y,w,h = cv2.boundingRect(cnt)
             cv2.rectangle(after, (x, y), (x + w, y + h), (36,255,12), 2)
-            object_position.append(tuple(cnt[cnt[:, :, 1].argmax()][0]).tolist()) # convert numpy array to list and append to object_position list
+            object_position.append(tuple(cnt[cnt[:, :, 1].argmax()][0])) # convert numpy array to list and append to object_position list
             print(tuple(cnt[cnt[:, :, 1].argmax()][0])) 
 
         '''cv2.namedWindow("after", cv2.WINDOW_NORMAL)
@@ -176,8 +176,11 @@ class Object_detect():
         if DEBUG_MODE:
             cv2.namedWindow("thresh_mask_gray", cv2.WINDOW_NORMAL)
             cv2.imshow('thresh_mask_gray',thresh_mask_gray)
+            cv2.namedWindow("diff", cv2.WINDOW_NORMAL)
+            cv2.imshow('diff',diff)
             cv2.waitKey(1000)
             cv2.destroyWindow('thresh_mask_gray')
+            cv2.destroyWindow('diff')
         return object_position
 
     def Pts_in_polygon(self, point:tuple or list, polygon_points:list or tuple):
@@ -195,8 +198,10 @@ class yolo_detect():
 
         if ip_entry.get() == "":
             messagebox.showerror("Error","Please enter Video Path")
-        if bounding_box_list == []:
+        elif bounding_box_list == []:
             messagebox.showerror("Error","Bounding Box is Empty")
+        elif large_table_list == []:
+            messagebox.showerror("Error","Large Table is Empty")
         else:
             yolo=YOLO()
 
@@ -685,8 +690,8 @@ class database_window():
 class Tool():
     def __init__(self, zoom):
         self.tool = "rect"
-        self.side1 = [] #logn side 1
-        self.side2 = [] #logn side 2
+        self.long_side1 = [] #logn side 1
+        self.long_side2 = [] #logn side 2
         self.canvas = zoom.canvas
         self.zoom = zoom
 
@@ -823,29 +828,51 @@ class Tool():
     # TODO: divide selected aera
     def divide(self):
         print("--DIVIDE--")
-        if divider_entry.get() == '' or original_table_entry.get == '':
+        if divider_entry_col.get() == '' or divider_entry_row.get() == '' or original_table_entry.get() == '':
             messagebox.showerror('Error', 'Please input divider value')
         elif len(point_bounding_box_list) != 4:
             messagebox.showerror('Error', 'Bounding box error')
         else:
-            #find long side
-            self.side1, self.side2 = self.divide_point()
+            global seat_divide_cnt
+            self.long_side1 = []
+            self.long_side2 = []
+            pt1,pt2,pt3,pt4 = point_bounding_box_list
+
+
+            #find short side
+            self.short_side1, self.short_side2 = self.divide_point(pt1,pt2,pt3,pt4, "short")
+            if DEBUG_MODE:
+                print("s_1: " + str(self.short_side1) + "\ns_2: " + str(self.short_side2))
+
+            for cnt in range(len(self.short_side1)-1) :
+                long_side1_temp, long_side2_temp = self.divide_point(self.short_side1[cnt], self.short_side2[cnt],self.short_side2[cnt+1], self.short_side1[cnt+1], "long")
+                self.long_side1.append(long_side1_temp)
+                self.long_side2.append(long_side2_temp)
+                     
+            if DEBUG_MODE:
+                print("l_1: " + str(self.long_side1) + "\nl_2: " + str(self.long_side2))
+                col = len(self.long_side1)
+                row = len(self.long_side1[0]) -1
+                print("TOTAL: row: " + str(col) + "     col: " + str(row))
+                print("CURRENT row: "+ str(int(seat_divide_cnt / col)) + '  col: ' +str(seat_divide_cnt % col))
 
             #clean_canvas
             self.clean_canvas()
             
             # draw divided polygon
             global sole_polygon
-            for cnt in range(len(self.side1) - 1):
-                sole_polygon.append(self.canvas.create_polygon(self.side1[cnt], self.side1[cnt+1], self.side2[cnt+1], self.side2[cnt], outline='green', fill=''))
-
-            print(len(sole_polygon))
-            global seat_divide_cnt
+            # draw divided polygon
+            for outer in range(len(self.long_side1)):
+                for inner in range(len(self.long_side1[outer]) - 1):
+                    sole_polygon.append(self.canvas.create_polygon(self.long_side1[outer][inner], self.long_side1[outer][inner+1], self.long_side2[outer][inner+1], self.long_side2[outer][inner], outline='green', fill=''))
+            
+            #reset seat_divide_cnt
             seat_divide_cnt = 0
 
             # draw polygon to display current seat that needs to define seat_name...
-            sole_polygon.append(self.canvas.create_polygon(self.side1[seat_divide_cnt], self.side1[seat_divide_cnt+1], self.side2[seat_divide_cnt+1], self.side2[seat_divide_cnt],outline='yellow' , width= 5, fill=''))
-            print(len(sole_polygon))
+            sole_polygon.append(self.canvas.create_polygon(self.long_side1[0][seat_divide_cnt], self.long_side1[0][seat_divide_cnt+1], self.long_side2[0][seat_divide_cnt+1], self.long_side2[0][seat_divide_cnt],outline='yellow' , width= 5, fill=''))
+
+                
 
     # TODO: devide area into specific seats
     def divide_seat(self):
@@ -854,20 +881,21 @@ class Tool():
 
         if seat_number_entry.get() == "" or floor_entry.get() == "" or camera_entry.get() == "":
             messagebox.showerror("Error","Please Enter parameter")
-        elif self.side1 == [] or self.side2 == []:
+        elif self.long_side1 == [] or self.long_side2 == []:
             messagebox.showerror("Error","Bounding box error")
         else:          
             # if all divide seat was named
-            if seat_divide_cnt < int(divider_entry.get()) :
+            if seat_divide_cnt < int(divider_entry_col.get()) * int(divider_entry_row.get()) :
+                col = len(self.long_side1[0]) -1
 
                 # append data to bounding box list
                 bounding_box_list.append([])
                 bounding_box_list[-1].append(file_type_data.get()) #file name
                 bounding_box_list[-1].append(seat_number_entry.get()) #seat number
-                bounding_box_list[-1].append((self.side1[seat_divide_cnt][0],self.side1[seat_divide_cnt][1])) #point1 coordinate
-                bounding_box_list[-1].append((self.side1[seat_divide_cnt+1][0],self.side1[seat_divide_cnt+1][1]))
-                bounding_box_list[-1].append((self.side2[seat_divide_cnt+1][0],self.side2[seat_divide_cnt+1][1]))
-                bounding_box_list[-1].append((self.side2[seat_divide_cnt][0],self.side2[seat_divide_cnt][1]))
+                bounding_box_list[-1].append((self.long_side1[int(seat_divide_cnt / col)][(seat_divide_cnt % col)][0],self.long_side1[int(seat_divide_cnt / col)][(seat_divide_cnt % col)][1])) #point1 coordinate
+                bounding_box_list[-1].append((self.long_side1[int(seat_divide_cnt / col)][(seat_divide_cnt % col)+1][0],self.long_side1[int(seat_divide_cnt / col)][(seat_divide_cnt % col)+1][1]))
+                bounding_box_list[-1].append((self.long_side2[int(seat_divide_cnt / col)][(seat_divide_cnt % col)+1][0],self.long_side2[int(seat_divide_cnt / col)][(seat_divide_cnt % col)+1][1]))
+                bounding_box_list[-1].append((self.long_side2[int(seat_divide_cnt / col)][(seat_divide_cnt % col)][0],self.long_side2[int(seat_divide_cnt / col)][(seat_divide_cnt % col)][1]))
                 bounding_box_list[-1].append(floor_entry.get())
                 bounding_box_list[-1].append(camera_entry.get())
                 bounding_box_list[-1].append(original_table_entry.get())
@@ -880,17 +908,21 @@ class Tool():
                 seat_name = seat_number_entry.get()
                 seat_number_entry.delete(0,'end')
                 seat_number_entry.insert(0,str(int(seat_name)+ 1))             
-            
-                print(bounding_box_list)
 
                 seat_divide_cnt += 1
+                if DEBUG_MODE:
+                    print("CURRENT row: "+ str(int(seat_divide_cnt / col)) + '  col: ' +str(seat_divide_cnt % col))           
 
                 # draw polygon to display next seat that needs to define seat_name...
-                if seat_divide_cnt < int(divider_entry.get()) :
-                    if len(sole_polygon) > (int(divider_entry.get())):
+                if seat_divide_cnt < int(divider_entry_col.get()) * int(divider_entry_row.get()) :
+                    if len(sole_polygon) > (int(divider_entry_col.get()) * int(divider_entry_row.get())):
                         self.canvas.delete(sole_polygon[-1])
-                    sole_polygon.append(self.canvas.create_polygon(self.side1[seat_divide_cnt], self.side1[seat_divide_cnt+1], self.side2[seat_divide_cnt+1], self.side2[seat_divide_cnt],outline='yellow' , width= 5, fill=''))
-                    print(len(sole_polygon))
+                    sole_polygon.append(self.canvas.create_polygon(self.long_side1[int(seat_divide_cnt / col)][(seat_divide_cnt % col)], 
+                                                                    self.long_side1[int(seat_divide_cnt / col)][(seat_divide_cnt % col)+1],
+                                                                    self.long_side2[int(seat_divide_cnt / col)][(seat_divide_cnt % col)+1],
+                                                                    self.long_side2[int(seat_divide_cnt / col)][(seat_divide_cnt % col)],
+                                                                    outline='yellow' , width= 5, fill=''))
+                    #print(len(sole_polygon))
                 # all seat value input is complete
                 else:
                     global point_bounding_box_list
@@ -904,14 +936,14 @@ class Tool():
                     self.clean_canvas()
 
                     # clean side1 side2
-                    self.side1 = []
-                    self.side1 = [] 
+                    self.long_side1 = []
+                    self.long_side1 = [] 
 
                     #clean large table 
                     original_table_entry.delete(0,'end')
             #print("Seat cnt: " + str(seat_divide_cnt))
         
-    def divide_point(self):
+    def divide_point(self, pt1, pt2, pt3, pt4, side:str):
         print("--DIVIDE POINT--")
         '''
         return two list which contain the divided point in each long side.
@@ -919,62 +951,108 @@ class Tool():
         FULL LIST 2: [(344, 345), [603.0, 277.5], (862, 210)]
         the list data in between the tuples is the divide point
         '''
-        segment = int(divider_entry.get())
-        pt1, pt2, pt3, pt4 = point_bounding_box_list
+        segment_col = int(divider_entry_col.get())
+        segment_row = int(divider_entry_row.get())
+        #pt1, pt2, pt3, pt4 = point_bounding_box_list
 
         #line (pt1,pt2) > line (pt2,pt3) 
         if math.hypot(pt2[0] - pt1[0], pt2[1] - pt1[1]) > math.hypot(pt3[0] - pt2[0], pt3[1] - pt2[1]):
             # two long side, later will insert divide point
             long_side1 = [pt1, pt2]
             long_side2 = [pt4, pt3]
+            short_side1 = [pt1, pt4]
+            short_side2 = [pt2, pt3]
         else:
             long_side1 = [pt2, pt3]
             long_side2 = [pt1, pt4]
+            short_side1 = [pt2, pt1]
+            short_side2 = [pt3, pt4]
         #print("long side 1: "+ str(long_side1))
 
-        # find long side distant
-        long_side1_dist = math.hypot(long_side1[0][0] - long_side1[1][0], long_side1[0][1] - long_side1[1][1])
-        long_side2_dist = math.hypot(long_side2[0][0] - long_side2[1][0], long_side2[0][1] - long_side2[1][1])
+        
+        if side == 'long':
+            # find long side distant
+            long_side1_dist = math.hypot(long_side1[0][0] - long_side1[1][0], long_side1[0][1] - long_side1[1][1])
+            long_side2_dist = math.hypot(long_side2[0][0] - long_side2[1][0], long_side2[0][1] - long_side2[1][1])
 
-        # find image correction ratio
-        # correction_ratio = (short side1)/ (short side2)
-        correction_ratio = math.hypot(long_side1[0][0] - long_side2[0][0], long_side1[0][1] - long_side2[0][1]) / math.hypot(long_side1[1][0] - long_side2[1][0], long_side1[1][1] - long_side2[1][1])
-        CORRECTION_RATIO_OFFSET = float(image_cor_entry.get())
-        correction_ratio = correction_ratio * CORRECTION_RATIO_OFFSET
-        #print("correction RATIO: " + str(correction_ratio))
+            # find image correction ratio
+            # correction_ratio_col = (short side1)/ (short side2)
+            correction_ratio_col = math.hypot(long_side1[0][0] - long_side2[0][0], long_side1[0][1] - long_side2[0][1]) / math.hypot(long_side1[1][0] - long_side2[1][0], long_side1[1][1] - long_side2[1][1])
+            CORRECTION_RATIO_OFFSET_COL = float(image_cor_col_entry.get())
+            correction_ratio_col = correction_ratio_col * CORRECTION_RATIO_OFFSET_COL
+            #print("correction RATIO: " + str(correction_ratio_col))
 
-        #find distant in each segment
-        long_side1_seg_dist = long_side1_dist / segment
-        long_side2_seg_dist = long_side2_dist / segment
-        #print("DIST: "+ str(long_side1_seg_dist))
+            #find distant in each segment_col
+            long_side1_seg_dist = long_side1_dist / segment_col
+            long_side2_seg_dist = long_side2_dist / segment_col
+            #print("DIST: "+ str(long_side1_seg_dist))
 
-        # caculate ratio
-        # ex: x_ratio = (pt2.x - pt1.x)/ dist
-        long_side1_x_ratio = (long_side1[1][0] - long_side1[0][0]) / long_side1_dist
-        long_side1_y_ratio = (long_side1[1][1] - long_side1[0][1]) / long_side1_dist
-        #print("X RATIO: "+ str(long_side1_x_ratio))
-        #print("Y RATIO: "+ str(long_side1_y_ratio))
+            # caculate ratio
+            # ex: x_ratio = (pt2.x - pt1.x)/ dist
+            long_side1_x_ratio = (long_side1[1][0] - long_side1[0][0]) / long_side1_dist
+            long_side1_y_ratio = (long_side1[1][1] - long_side1[0][1]) / long_side1_dist
 
-        long_side2_x_ratio = (long_side2[1][0] - long_side2[0][0]) / long_side2_dist
-        long_side2_y_ratio = (long_side2[1][1] - long_side2[0][1]) / long_side2_dist
+            long_side2_x_ratio = (long_side2[1][0] - long_side2[0][0]) / long_side2_dist
+            long_side2_y_ratio = (long_side2[1][1] - long_side2[0][1]) / long_side2_dist
+            #print("X RATIO: "+ str(long_side1_x_ratio))
+            #print("Y RATIO: "+ str(long_side1_y_ratio))
 
-        # caculate divide point
-        long_side1_div_pt = []
-        long_side2_div_pt = []
+            # caculate divide point
+            long_side1_div_pt = []
+            long_side2_div_pt = []
 
-        for point in range(1,segment):
-            long_side1_div_pt.append([(long_side1[0][0] + point * long_side1_seg_dist * long_side1_x_ratio * correction_ratio), (long_side1[0][1] + point * long_side1_seg_dist * long_side1_y_ratio * correction_ratio)])
-            long_side2_div_pt.append([(long_side2[0][0] + point * long_side2_seg_dist * long_side2_x_ratio * correction_ratio), (long_side2[0][1] + point * long_side2_seg_dist * long_side2_y_ratio * correction_ratio)])
-        #print("DIVIDE point: " + str(long_side1_div_pt))
+            for point in range(1,segment_col):
+                long_side1_div_pt.append([(long_side1[0][0] + point * long_side1_seg_dist * long_side1_x_ratio * correction_ratio_col), (long_side1[0][1] + point * long_side1_seg_dist * long_side1_y_ratio * correction_ratio_col)])
+                long_side2_div_pt.append([(long_side2[0][0] + point * long_side2_seg_dist * long_side2_x_ratio * correction_ratio_col), (long_side2[0][1] + point * long_side2_seg_dist * long_side2_y_ratio * correction_ratio_col)])
+            #print("DIVIDE point: " + str(long_side1_div_pt))
 
-        # insert divide point to original long side list
-        for div_pt in range(len(long_side1_div_pt)):
-            long_side1.insert(1 + div_pt ,long_side1_div_pt[div_pt])
-            long_side2.insert(1 + div_pt ,long_side2_div_pt[div_pt])
-        #print("FULL LIST 1: " + str(long_side1))
-        #print("FULL LIST 2: " + str(long_side2))
+            # insert divide point to original long side list
+            for div_pt in range(len(long_side1_div_pt)):
+                long_side1.insert(1 + div_pt ,long_side1_div_pt[div_pt])
+                long_side2.insert(1 + div_pt ,long_side2_div_pt[div_pt])
 
-        return long_side1, long_side2
+            return long_side1, long_side2
+
+
+        elif side == 'short':
+            #find short side distant
+            short_side1_dist = math.hypot(short_side1[0][0] - short_side1[1][0], short_side1[0][1] - short_side1[1][1])
+            short_side2_dist = math.hypot(short_side2[0][0] - short_side2[1][0], short_side2[0][1] - short_side2[1][1])
+
+            # find image correction ratio
+            # correction_ratio_col = (long side1)/ (long side2)
+            correction_ratio_row = math.hypot(short_side1[0][0] - short_side2[0][0], short_side1[0][1] - short_side2[0][1]) / math.hypot(short_side1[1][0] - short_side2[1][0], short_side1[1][1] - short_side2[1][1])
+            CORRECTION_RATIO_OFFSET_ROW = float(image_cor_row_entry.get())
+            correction_ratio_row = correction_ratio_row * CORRECTION_RATIO_OFFSET_ROW
+            
+            #find distant in each segment_row
+            short_side1_seg_dist = short_side1_dist / segment_row
+            short_side2_seg_dist = short_side2_dist / segment_row
+
+            # caculate ratio
+            # ex: x_ratio = (pt2.x - pt1.x)/ dist
+            short_side1_x_ratio = (short_side1[1][0] - short_side1[0][0]) / short_side1_dist
+            short_side1_y_ratio = (short_side1[1][1] - short_side1[0][1]) / short_side1_dist        
+
+            short_side2_x_ratio = (short_side2[1][0] - short_side2[0][0]) / short_side2_dist
+            short_side2_y_ratio = (short_side2[1][1] - short_side2[0][1]) / short_side2_dist
+
+            short_side1_div_pt = []
+            short_side2_div_pt = []
+
+            for point in range(1,segment_row):
+                short_side1_div_pt.append([(short_side1[0][0] + point * short_side1_seg_dist * short_side1_x_ratio * correction_ratio_row), (short_side1[0][1] + point * short_side1_seg_dist * short_side1_y_ratio * correction_ratio_row)])
+                short_side2_div_pt.append([(short_side2[0][0] + point * short_side2_seg_dist * short_side2_x_ratio * correction_ratio_row), (short_side2[0][1] + point * short_side2_seg_dist * short_side2_y_ratio * correction_ratio_row)])
+
+            # insert divide point to original long side list
+            for div_pt in range(len(short_side1_div_pt)):
+                short_side1.insert(1 + div_pt ,short_side1_div_pt[div_pt])
+                short_side2.insert(1 + div_pt ,short_side2_div_pt[div_pt])
+
+            return short_side1, short_side2
+            
+        else:
+            pass
 
     # TODO: 4 point selecting tool
     def point_mouse_down(self, event):
@@ -1006,7 +1084,6 @@ class Tool():
             else:
                 point_cnt += 1
         print(point_bounding_box_list)
-        print(sole_polygon)
 
 
     def rect_left_mouse_down(self, event):
@@ -1079,7 +1156,8 @@ class Tool():
         #update listbox
         self.listbox_update()
 
-        print(bounding_box_list)
+        if DEBUG_MODE:
+            print(bounding_box_list)
 
     #display all bounding box on canvas
     def display_all(self):
@@ -1093,7 +1171,7 @@ class Tool():
                     bounding_box_text.append(self.canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'red', anchor="nw", font=("Helvetica", 15)))
                     bounding_box_text.append(self.canvas.create_rectangle(self.canvas.bbox(bounding_box_text[-1]),fill="white"))
                 else:
-                    sole_polygon.append(self.canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='blue', fill=''))
+                    sole_polygon.append(self.canvas.create_polygon(box[2][0], box[2][1], box[3][0], box[3][1], box[4][0], box[4][1], box[5][0], box[5][1], outline='blue', fill='',width= 3))
                     #display text for bounding box
                     bounding_box_text.append(self.canvas.create_text(box[2][0],box[2][1], text=box[1], fill= 'blue', anchor="nw", font=("Helvetica", 15)))
                     bounding_box_text.append(self.canvas.create_rectangle(self.canvas.bbox(bounding_box_text[-1]),fill="white"))
@@ -1104,7 +1182,7 @@ class Tool():
                                                                 table[LTL_PT2_INDEX][0], table[LTL_PT2_INDEX][1], 
                                                                 table[LTL_PT3_INDEX][0], table[LTL_PT3_INDEX][1], 
                                                                 table[LTL_PT4_INDEX][0], table[LTL_PT4_INDEX][1], 
-                                                                outline='black', fill='',width= 3))
+                                                                outline='black', fill=''))
                 bounding_box_text.append(self.canvas.create_text(table[LTL_PT2_INDEX][0], table[LTL_PT2_INDEX][1],  text=box[BBL_ORIGINAL_T_INDEX], fill= 'black', anchor="nw", font=("Helvetica", 15)))
                 bounding_box_text.append(self.canvas.create_rectangle(self.canvas.bbox(bounding_box_text[-1]),fill="white"))
                 self.canvas.tag_lower(bounding_box_text[-1],bounding_box_text[-2])
@@ -1126,7 +1204,6 @@ class Tool():
         sole_rectangle =[]
 
     def listbox_update(self):
-        print(bounding_box_list)
         bounding_box_listbox.insert(0, "  file type   |    name    |   original t")
         bounding_box_listbox.delete(1,'end')
         for box in bounding_box_list:
@@ -1164,10 +1241,10 @@ class AutoScrollbar(ttk.Scrollbar):
             ttk.Scrollbar.set(self, lo, hi)
 
     def pack(self, **kw):
-        raise tk.TclError('Cannot use pack with this widget')
+        raise TclError('Cannot use pack with this widget')
 
     def place(self, **kw):
-        raise tk.TclError('Cannot use place with this widget')
+        raise TclError('Cannot use place with this widget')
 
 class Zoom_Advanced(ttk.Frame):
     ''' Advanced zoom of the image '''
@@ -1239,7 +1316,7 @@ class Zoom_Advanced(ttk.Frame):
 
     def show_image(self, event=None):
         ''' Show image on the Canvas '''
-        self.container = self.canvas.create_rectangle(0, 0, self.width*self.zoom, self.height*self.zoom, width=0)
+        self.container = self.canvas.create_rectangle(0, 0, self.width*self.zoom, self.height*self.zoom)
         self.newimage=self.image.resize((int(self.width*self.zoom), int(self.height*self.zoom)))
         bbox1 = self.canvas.bbox(self.container)  # get image area
         self.canvas.configure(scrollregion=bbox1)  # set scroll region
@@ -1350,23 +1427,37 @@ if __name__ == '__main__':
     original_table_label = Label(divider_frame, text="Original \nTable ")
     original_table_label.grid(row=0, column=0, pady=5, padx=5)
     original_table_entry = Entry(divider_frame)
-    original_table_entry.grid(row=0,column=1)
+    original_table_entry.grid(row=0,column=1, columnspan=3)
 
     # devide area into segments
     divider_label = Label(divider_frame, text= 'divide into:')
     divider_label.grid(row=1, column=0, pady= 5)
-    divider_entry = Entry(divider_frame)
-    divider_entry.grid(row=1, column=1)
-    divider_entry.insert(0,"1")
 
+    divider_entry_col = Entry(divider_frame, width= 8)
+    divider_entry_col.grid(row=1, column=1, sticky=W)
+    divider_entry_col.insert(0,"1")
+
+    x_label = Label(divider_frame, text="x")
+    x_label.grid(row=1, column=2 , padx= 2, sticky=W)
+
+    divider_entry_row= Entry(divider_frame, width= 8)
+    divider_entry_row.grid(row=1, column=3)
+    divider_entry_row.insert(0,"1")
+
+    # Done btn
     divider_btn = Button(divider_frame, text="Done", command= tool.divide, height=5)
-    divider_btn.grid(row=1, column=2, padx=5, rowspan=2)
+    divider_btn.grid(row=1, column=4, padx=5, rowspan=2)
 
+    # divide correction offset
     image_cor_label = Label(divider_frame, text="Image \nCorrection:\n Offset")
     image_cor_label.grid(row=2, column=0, pady= 5,padx=5)
-    image_cor_entry = Entry(divider_frame)
-    image_cor_entry.grid(row=2, column=1)
-    image_cor_entry.insert(0,"1.15")
+    image_cor_col_entry = Entry(divider_frame, width=8)
+    image_cor_col_entry.grid(row=2, column=1)
+    image_cor_col_entry.insert(0,"1.15")
+
+    image_cor_row_entry = Entry(divider_frame, width=8)
+    image_cor_row_entry.grid(row=2, column=3)
+    image_cor_row_entry.insert(0,"1")
 
     
     #? ============ /divider frame ===========
@@ -1441,6 +1532,10 @@ if __name__ == '__main__':
     #? ============ /frame 3 ===========
     
     tool.change_tool("point")
-    
+    original_table_entry.insert(0,"1")
+    seat_number_entry.insert(0,"1")
+    camera_entry.insert(0,"1")
+    floor_entry.insert(0,"1")
+    ip_entry.insert(0,"192.168.137.211:8080/h264_pcm.sdp")
 
     win.mainloop()
