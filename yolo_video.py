@@ -10,7 +10,7 @@ from tkinter import *
 from tkinter import filedialog, messagebox
 import random
 from tkinter import ttk
-
+from keras.models import load_model
 # difference
 from skimage.metrics import structural_similarity
 import numpy as np
@@ -20,7 +20,7 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
 from numpy.lib.arraypad import pad
-from yolo import YOLO
+#from yolo import YOLO
 from yolo3.utils import rand
 from PIL import Image, ImageTk, ImageDraw
 import requests
@@ -110,54 +110,10 @@ class Object_detect():
         (score, diff) = structural_similarity(before_gray, after_gray, full=True)
         print("Image similarity", score)
 
-        # The diff image contains the actual image differences between the two images
-        # and is represented as a floating point data type in the range [0,1] 
-        # so we must convert the array to 8-bit unsigned integers in the range
-        # [0,255] before we can use it with OpenCV
-        diff = (diff * 255).astype("uint8")
-
-        # Threshold the difference image, followed by finding contours to
-        # obtain the regions of the two input images that differ
-
-        #? cv2.THRESH_OTSU: use OTSU algorithm to choose the optimal threshold value
-        #! thresh = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
-        thresh = cv2.threshold(diff, 150, 255, cv2.THRESH_BINARY_INV)[1]
-
-        #? cv2.CHAIN_APPROX_SIMPLE代表壓縮取回的Contour像素點，只取長寬及對角線的end points，而不傳回所有的點，如此可節省記憶體使用並加快速度。
-        #? CV_RETR_EXTERNAL，則表示只取外層的Contour（如果有其它Contour包在內部）。
-        contours = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        contours = contours[0] if len(contours) == 2 else contours[1]
-
-        temp =[1]
-        for c in contours:
-            area = cv2.contourArea(c)
-            temp.append(area)
-
-        # draw contours area. saturation and size is proportional
-        thresh_mask = np.zeros(before.shape, dtype='uint8')
-        for c in contours:
-            area = cv2.contourArea(c)
-            cv2.drawContours(thresh_mask, [c], 0, (0,(area/max(temp))*255,0), -1)
-
-        thresh_mask_gray = cv2.cvtColor(thresh_mask, cv2.COLOR_BGR2GRAY)
-        thresh_mask_gray = cv2.threshold(thresh_mask_gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
-
-        # Remove spikes
-        kernel = np.ones((5,5), np.uint8)
-        thresh_mask_gray = cv2.bitwise_not(thresh_mask_gray)
-        thresh_mask_gray = cv2.erode(thresh_mask_gray, kernel, iterations=self.EROSION_FACTOR)
-
-        #? find lowest point to identify position
-        thresh_mask_gray_cnt = cv2.findContours(thresh_mask_gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
-
-        #find lowest point to decide where the object is
-        object_position = []
-        for cnt in thresh_mask_gray_cnt:
-            x,y,w,h = cv2.boundingRect(cnt)
-            cv2.rectangle(after, (x, y), (x + w, y + h), (36,255,12), 2)
-            object_position.append(tuple(cnt[cnt[:, :, 1].argmax()][0])) # convert numpy array to list and append to object_position list
-            print(tuple(cnt[cnt[:, :, 1].argmax()][0])) 
-
+        diff = diff.reshape(1,175,35,1).astype("float32")
+        predict_x=model.predict(diff)
+        pre_y=np.argmax(predict_x,axis=1)
+        pre_y=int(pre_y)
         '''cv2.namedWindow("after", cv2.WINDOW_NORMAL)
         cv2.imshow('after',after)
         #cv2.namedWindow("blur_diff", cv2.WINDOW_NORMAL)
@@ -173,15 +129,7 @@ class Object_detect():
         cv2.waitKey(0)
         cv2.destroyAllWindows()
         '''
-        if DEBUG_MODE:
-            cv2.namedWindow("thresh_mask_gray", cv2.WINDOW_NORMAL)
-            cv2.imshow('thresh_mask_gray',thresh_mask_gray)
-            cv2.namedWindow("diff", cv2.WINDOW_NORMAL)
-            cv2.imshow('diff',diff)
-            cv2.waitKey(1000)
-            cv2.destroyWindow('thresh_mask_gray')
-            cv2.destroyWindow('diff')
-        return object_position
+        return pre_y
 
     def Pts_in_polygon(self, point:tuple or list, polygon_points:list or tuple):
         pts = Point(point[0], point[1])
@@ -203,7 +151,7 @@ class yolo_detect():
         elif large_table_list == []:
             messagebox.showerror("Error","Large Table is Empty")
         else:
-            yolo=YOLO()
+            #yolo=YOLO()
 
             pretime = 0
             self.video = cv2.VideoCapture('rtsp://'+ip_entry.get())
@@ -216,83 +164,39 @@ class yolo_detect():
 
                     image=Image.fromarray(self.frame)
                     #image.show()
-
-                    if DEBUG_MODE:
-                        print(large_table_list)
-                    #!!!!! object detect
-                    for table in large_table_list:                       
-                        # crop the image
-                        img_now_croped = crop_polygon('', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]), image=image)
-
-                        #convert image format frome PIL.Image to openCV
-                        img_now_croped = self.object.PIL2CV(img_now_croped)
-                        img_before = self.object.PIL2CV(table[LTL_IMAGE_INDEX].copy())
-
-                        # check for difference and get the object
-                        objects = self.object.difference(img_before, img_now_croped)
-                        print("objects" + str(objects))
-                        
-                        # if no object is detected
-                        if objects == []:
-                            print("--No OBJECT--")
-                        #if object is detected
-                        else:
-                            print("--OBJECT DETECTED--")
-                            #get all seats related to current table
-                            related_seats = []
-                            
-
-                            for seats in bounding_box_list:
-                                if seats[BBL_FILE_TYPE_INDEX] == 'table' and seats[BBL_ORIGINAL_T_INDEX] == table[LTL_TABLE_NAME_INDEX]:
-                                    related_seats.append(seats)
-
-                            for related_seat in related_seats:
-                                # detect point in which table
-                                remove_list =[] #contain the object that has been located
-                                for object1 in objects:
-                                    if self.object.Pts_in_polygon(object1, [related_seat[BBL_PT1_INDEX], related_seat[BBL_PT2_INDEX],related_seat[BBL_PT3_INDEX],related_seat[BBL_PT4_INDEX]]):
-                                        print("object in seat: " + str(related_seat[BBL_SEAT_NAME_INDEX]))
-                                        remove_list.append(object1)
-
-                                        self.occupied_table.append([])
-                                        self.occupied_table[-1].append(related_seat[BBL_SEAT_NAME_INDEX]) # append table name
-
-                                # remove the object that has been located
-                                for ob in remove_list:
-                                    print("rm_list: " + str(ob))
-                                    objects.remove(ob)
-                                            
-
+                    
                     #! yolo detect
                     print("-- YOLO --")
                     for seats in bounding_box_list:
+                        people_num=0
+                        print("seats"+ str(seats))
+                        print("coor: "+ str((seats[BBL_PT1_INDEX], seats[BBL_PT2_INDEX], seats[BBL_PT3_INDEX], seats[BBL_PT4_INDEX])))
                         if seats[BBL_FILE_TYPE_INDEX] == 'seat':
-                            print(seats)
+                            
                             img = crop_polygon('', (seats[BBL_PT1_INDEX], seats[BBL_PT2_INDEX], seats[BBL_PT3_INDEX], seats[BBL_PT4_INDEX]), image=image)
                             img = self.object.PIL2CV(img)  #change format from Pillow Image to OpenCV image
                             img = crop_with_argwhere(img) # crop black area
                             img = self.object.CV2PIL(img)
 
-                            r_image, people_num = yolo.detect_image(img)
+                            #r_image, people_num = yolo.detect_image(img)
 
-                            if DEBUG_MODE:
-                                r_image = self.object.PIL2CV(r_image)
-                                cv2.namedWindow("YOLO", cv2.WINDOW_NORMAL)
-                                cv2.imshow('YOLO',r_image)
-                                cv2.waitKey(1000)
-                                cv2.destroyWindow('YOLO')
-
-                            # if the table related to this seat is occupied then  people_num must >= 1
-                            for table in self.occupied_table:
-                                if table[0] == seats[BBL_SEAT_NAME_INDEX]:
-                                    people_num += 1
                             
-                            postdata_toserver["seat"]=seats[BBL_SEAT_NAME_INDEX]
-                            postdata_toserver["location"]=seats[BBL_LOCATION_INDEX]
-                            postdata_toserver["camera"]=seats[BBL_CAM_NAME_INDEX]
-                            postdata_toserver["occupy"]=str(people_num)
-                            r=requests.post('http://192.168.43.198:8000/create/', data = postdata_toserver)
-                            print("Django Data: " + str(postdata_toserver) + "\n\n")
+                        if seats[BBL_FILE_TYPE_INDEX] == 'table':
+                            img_now_croped = crop_polygon('', (seats[LTL_PT1_INDEX], seats[LTL_PT2_INDEX], seats[LTL_PT3_INDEX], seats[LTL_PT4_INDEX]), image=image)
+                            img_now_croped = self.object.PIL2CV(img_now_croped)
+                            img_before_croped = crop_polygon('', (seats[LTL_PT1_INDEX], seats[LTL_PT2_INDEX], seats[LTL_PT3_INDEX], seats[LTL_PT4_INDEX]), image=image)
+                            img_before = self.object.PIL2CV(img_before_croped)
+                            object = self.object.difference(img_before, img_now_croped)
+                            if object==1:
+                                people_num=people_num+1
+            
+                        print(people_num)
+                        #postdata_toserver["seat"]=seats[BBL_SEAT_NAME_INDEX]
+                        #postdata_toserver["location"]=seats[BBL_LOCATION_INDEX]
+                        #postdata_toserver["camera"]=seats[BBL_CAM_NAME_INDEX]
+                        #postdata_toserver["occupy"]=str(people_num)
+                        #r=requests.post('http://192.168.43.198:8000/create/', data = postdata_toserver)
+                        #print("Django Data: " + str(postdata_toserver) + "\n\n")
                     
                     #yolo.close_session()
                     self.occupied_table = []
@@ -1333,7 +1237,7 @@ class Zoom_Advanced(ttk.Frame):
         self.canvas.imagetk = imagetk  # keep an extra reference to prevent garbage-collection
 
 
-def crop_polygon(img_path:str, point:list, **kwargs):
+def crop_polygon(img_path:str, point:list or tuple, **kwargs):
     '''
     crop the image with polygon mask. Background is Black.
     PIL Image format
@@ -1346,6 +1250,7 @@ def crop_polygon(img_path:str, point:list, **kwargs):
     else:
         image = Image.open(img_path)
     xy = point
+    print(xy)
     #print("xy: " + str(xy))
 
     mask = Image.new("L", image.size, 0)
@@ -1388,6 +1293,9 @@ if __name__ == '__main__':
     win = Tk()
     win.title("Library Seats")
     db_xy = DB_4point_xy()
+
+    model = load_model("table.h5")
+    model.summary()
     
 
     #Get the current screen width and height
@@ -1536,6 +1444,6 @@ if __name__ == '__main__':
     seat_number_entry.insert(0,"1")
     camera_entry.insert(0,"1")
     floor_entry.insert(0,"1")
-    ip_entry.insert(0,"192.168.137.211:8080/h264_pcm.sdp")
+    ip_entry.insert(0,"192.168.43.1:8080/h264_pcm.sdp")
 
     win.mainloop()
