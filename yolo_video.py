@@ -109,11 +109,12 @@ class Object_detect():
         # Compute SSIM between two images
         (score, diff) = structural_similarity(before_gray, after_gray, full=True)
         print("Image similarity", score)
-
         diff = diff.reshape(1,175,35,1).astype("float32")
+        
         predict_x=model.predict(diff)
         pre_y=np.argmax(predict_x,axis=1)
         pre_y=int(pre_y)
+        
         '''cv2.namedWindow("after", cv2.WINDOW_NORMAL)
         cv2.imshow('after',after)
         #cv2.namedWindow("blur_diff", cv2.WINDOW_NORMAL)
@@ -157,14 +158,31 @@ class yolo_detect():
             self.video = cv2.VideoCapture('rtsp://'+ip_entry.get())
             print("--CAMERA CONNECTED--")
             while True:
-                if time.time() -  pretime > 15:
+                if time.time() -  pretime > 1:
                     pretime = time.time()
                     self.video = cv2.VideoCapture('rtsp://'+ip_entry.get())
                     (self.grabbed, self.frame) = self.video.read()
 
                     image=Image.fromarray(self.frame)
                     #image.show()
-                    
+                    for table in large_table_list:                       
+                        # crop the image
+                            
+                        for seats in bounding_box_list:
+                            if seats[BBL_FILE_TYPE_INDEX] == 'table' and seats[BBL_ORIGINAL_T_INDEX] == table[LTL_TABLE_NAME_INDEX]:
+                                img_now_croped = crop_polygon('', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]), image=image)
+                                img_now_croped = self.object.PIL2CV(img_now_croped)
+                                img_now_croped = crop_with_argwhere(img_now_croped)
+                                img_now_croped = cv2.resize(img_now_croped, (175, 35), interpolation=cv2.INTER_AREA)
+                                
+                                img_before = self.object.PIL2CV(table[LTL_IMAGE_INDEX].copy())
+                                img_before = crop_with_argwhere(img_before)
+                                img_before = cv2.resize(img_before, (175, 35), interpolation=cv2.INTER_AREA)
+                                objects = self.object.difference(img_before, img_now_croped)
+                                if objects==1:
+                                    self.occupied_table.append([])
+                                    self.occupied_table[-1].append(seats[BBL_SEAT_NAME_INDEX])
+                                
                     #! yolo detect
                     print("-- YOLO --")
                     for seats in bounding_box_list:
@@ -181,14 +199,9 @@ class yolo_detect():
                             #r_image, people_num = yolo.detect_image(img)
 
                             
-                        if seats[BBL_FILE_TYPE_INDEX] == 'table':
-                            img_now_croped = crop_polygon('', (seats[LTL_PT1_INDEX], seats[LTL_PT2_INDEX], seats[LTL_PT3_INDEX], seats[LTL_PT4_INDEX]), image=image)
-                            img_now_croped = self.object.PIL2CV(img_now_croped)
-                            img_before_croped = crop_polygon('', (seats[LTL_PT1_INDEX], seats[LTL_PT2_INDEX], seats[LTL_PT3_INDEX], seats[LTL_PT4_INDEX]), image=image)
-                            img_before = self.object.PIL2CV(img_before_croped)
-                            object = self.object.difference(img_before, img_now_croped)
-                            if object==1:
-                                people_num=people_num+1
+                            for table in self.occupied_table:
+                                if table[0] == seats[BBL_SEAT_NAME_INDEX]:
+                                    people_num += 1
             
                         print(people_num)
                         #postdata_toserver["seat"]=seats[BBL_SEAT_NAME_INDEX]
@@ -1265,13 +1278,13 @@ def crop_polygon(img_path:str, point:list or tuple, **kwargs):
 # @Gareth Rees's solution
 def crop_with_argwhere(image):
     # Mask of non-black pixels (assuming image has a single channel).
-    mask = image > 0
+    mask = image 
     
     # Coordinates of non-black pixels.
     coords = np.argwhere(mask)
 
     # Bounding box of non-black pixels.
-    x0, y0, color = coords.min(axis=0)
+    x0, y0,color = coords.min(axis=0)
     x1, y1, color = coords.max(axis=0) + 1   # slices are exclusive at the top
     
     # Get the contents of the bounding box.
