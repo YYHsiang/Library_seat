@@ -108,12 +108,14 @@ class Object_detect():
 
         # Compute SSIM between two images
         (score, diff) = structural_similarity(before_gray, after_gray, full=True)
+        cv2.namedWindow("diff", cv2.WINDOW_NORMAL)
+        cv2.imshow('diff',diff)
         print("Image similarity", score)
-        diff = diff.reshape(1,175,35,1).astype("float32")
+        diff_reshape = diff.reshape(1,175,35,1).astype("float32")
         
-        predict_x=model.predict(diff)
+        predict_x=model.predict(diff_reshape)
         pre_y=np.argmax(predict_x,axis=1)
-        pre_y=int(pre_y)
+        print(pre_y)
         
         '''cv2.namedWindow("after", cv2.WINDOW_NORMAL)
         cv2.imshow('after',after)
@@ -130,6 +132,7 @@ class Object_detect():
         cv2.waitKey(0)
         cv2.destroyAllWindows()
         '''
+        
         return pre_y
 
     def Pts_in_polygon(self, point:tuple or list, polygon_points:list or tuple):
@@ -174,16 +177,22 @@ class yolo_detect():
                                 img_now_croped = self.object.PIL2CV(img_now_croped)
                                 img_now_croped = crop_with_argwhere(img_now_croped)
                                 img_now_croped = cv2.resize(img_now_croped, (175, 35), interpolation=cv2.INTER_AREA)
+                                cv2.namedWindow("img_now_croped", cv2.WINDOW_NORMAL)
+                                cv2.imshow("img_now_croped", img_now_croped)
                                 
                                 img_before = self.object.PIL2CV(table[LTL_IMAGE_INDEX].copy())
                                 img_before = crop_with_argwhere(img_before)
                                 img_before = cv2.resize(img_before, (175, 35), interpolation=cv2.INTER_AREA)
+                                cv2.namedWindow("img_before", cv2.WINDOW_NORMAL)
+                                cv2.imshow("img_before", img_before)
+                                cv2.waitKey(30)
+
                                 objects = self.object.difference(img_before, img_now_croped)
                                 if objects==1:
                                     self.occupied_table.append([])
                                     self.occupied_table[-1].append(seats[BBL_SEAT_NAME_INDEX])
                                 
-                    #! yolo detect
+                    '''#! yolo detect
                     print("-- YOLO --")
                     for seats in bounding_box_list:
                         people_num=0
@@ -209,7 +218,7 @@ class yolo_detect():
                         #postdata_toserver["camera"]=seats[BBL_CAM_NAME_INDEX]
                         #postdata_toserver["occupy"]=str(people_num)
                         #r=requests.post('http://192.168.43.198:8000/create/', data = postdata_toserver)
-                        #print("Django Data: " + str(postdata_toserver) + "\n\n")
+                        #print("Django Data: " + str(postdata_toserver) + "\n\n")'''
                     
                     #yolo.close_session()
                     self.occupied_table = []
@@ -1301,7 +1310,7 @@ def openSetupImage(): #select an image to setup bounding box
 
 if __name__ == '__main__':
 
-    global var
+    global var, model
 
     win = Tk()
     win.title("Library Seats")
@@ -1457,6 +1466,6 @@ if __name__ == '__main__':
     seat_number_entry.insert(0,"1")
     camera_entry.insert(0,"1")
     floor_entry.insert(0,"1")
-    ip_entry.insert(0,"192.168.43.1:8080/h264_pcm.sdp")
+    ip_entry.insert(0,"192.168.137.211:8080/h264_pcm.sdp")
 
     win.mainloop()
