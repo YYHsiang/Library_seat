@@ -29,7 +29,15 @@ class ChartData(APIView):
 
         location_list = Location.objects.all()
         location_average_time = location_average_occupy_time(location_list)
+        #discussion room
+        discussion_room = Location.objects.get(name= "discussion_room") 
+        discussion_room_seat_avg_time = Every_seat(discussion_room)
+        discussion_seats = Seat.objects.filter(location= discussion_room)
+        discussion_room_seat=[]
+        for seat in discussion_seats:
+            discussion_room_seat.append(seat.seat_number)
 
+        
         for temp in location_list:
             location_seat_cnt.append(temp.seat_set.count())
             location.append(temp.name)
@@ -38,11 +46,15 @@ class ChartData(APIView):
             "location" : location ,
             "location_seat_cnt" : location_seat_cnt,
             "location_average_time": location_average_time,
+            "discussion_room_seat_avg_time": discussion_room_seat_avg_time,
+            "discussion_room_seat": discussion_room_seat,
         }
         return Response(data)
 
 
 def location_average_occupy_time(Locations: list or tuple):
+    # average occupy time in each location
+    # [location 1 average occupy time,  location 2 average occupy time, ...]
     location_avg_time = []
     for location in Locations:
         seats = location.seat_set.all()
@@ -59,6 +71,18 @@ def location_average_occupy_time(Locations: list or tuple):
             location_avg_time.append(0)
 
     return location_avg_time
+
+def Every_seat(Location):
+    # [seat 1 avg occupy time, seat 1 avg occupy time, ...]
+    avg_list = []
+    seats = Seat.objects.filter(location= Location)
+    for seat in seats:
+        if Seat_Average_occupy_time(seat) is None:
+            avg_list.append(0)
+        else:
+            avg_list.append(Seat_Average_occupy_time(seat))
+
+    return avg_list
 
 def Seat_Average_occupy_time(Seat):
     # caculate average occupy time of each seat in minutes
