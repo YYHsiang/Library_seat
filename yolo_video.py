@@ -3,9 +3,8 @@ import argparse
 import math
 import io
 import time
-#from yolo import YOLO
-
 import os
+
 from tkinter import *
 from tkinter import filedialog, messagebox
 import random
@@ -20,12 +19,14 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
 from numpy.lib.arraypad import pad
-#from yolo import YOLO
+from yolo import YOLO
 from yolo3.utils import rand
 from PIL import Image, ImageTk, ImageDraw
 import requests
 import cv2
 import sqlite3
+
+import matplotlib.pyplot as plt
 
 # Debug mode
 DEBUG_MODE = True
@@ -108,6 +109,7 @@ class Object_detect():
 
         # Compute SSIM between two images
         (score, diff) = structural_similarity(before_gray, after_gray, full=True)
+        diff_dis = (diff.copy() * 255).astype("uint8")
         print("Image similarity", score)
         diff = diff.reshape(1,175,35,1).astype("float32")
         
@@ -115,6 +117,9 @@ class Object_detect():
         pre_y=np.argmax(predict_x,axis=1)
         pre_y=int(pre_y)
         print("TABLE diff: " + str(pre_y))
+
+        
+    
         '''cv2.namedWindow("after", cv2.WINDOW_NORMAL)
         cv2.imshow('after',after)
         #cv2.namedWindow("blur_diff", cv2.WINDOW_NORMAL)
@@ -130,7 +135,7 @@ class Object_detect():
         cv2.waitKey(0)
         cv2.destroyAllWindows()
         '''
-        return pre_y
+        return pre_y, diff_dis
 
     def Pts_in_polygon(self, point:tuple or list, polygon_points:list or tuple):
         pts = Point(point[0], point[1])
@@ -152,13 +157,13 @@ class yolo_detect():
         elif large_table_list == []:
             messagebox.showerror("Error","Large Table is Empty")
         else:
-            #yolo=YOLO()
+            yolo=YOLO()
 
             pretime = 0
             self.video = cv2.VideoCapture('rtsp://'+ip_entry.get())
             print("--CAMERA CONNECTED--")
             while True:
-                if time.time() -  pretime > 1:
+                if time.time() -  pretime > 4:
                     pretime = time.time()
                     self.video = cv2.VideoCapture('rtsp://'+ip_entry.get())
                     (self.grabbed, self.frame) = self.video.read()
@@ -166,19 +171,29 @@ class yolo_detect():
                     image=Image.fromarray(self.frame)
                     #image.show()
                     for table in large_table_list:                       
-                        # crop the image
-                            
+                        # crop the image                            
                         for seats in bounding_box_list:
                             if seats[BBL_FILE_TYPE_INDEX] == 'table' and seats[BBL_ORIGINAL_T_INDEX] == table[LTL_TABLE_NAME_INDEX]:
-                                img_now_croped = crop_polygon('', (table[LTL_PT1_INDEX], table[LTL_PT2_INDEX], table[LTL_PT3_INDEX], table[LTL_PT4_INDEX]), image=image)
+                                img_now_croped = crop_polygon('', (seats[BBL_PT1_INDEX], seats[BBL_PT2_INDEX], seats[BBL_PT3_INDEX], seats[BBL_PT4_INDEX]), image=image)
                                 img_now_croped = self.object.PIL2CV(img_now_croped)
                                 img_now_croped = crop_with_argwhere(img_now_croped)
                                 img_now_croped = cv2.resize(img_now_croped, (175, 35), interpolation=cv2.INTER_AREA)
-                                
-                                img_before = self.object.PIL2CV(table[LTL_IMAGE_INDEX].copy())
+                                                    
+                                img_before = table[LTL_IMAGE_INDEX].copy()
+                                img_before = crop_polygon('', (seats[BBL_PT1_INDEX], seats[BBL_PT2_INDEX], seats[BBL_PT3_INDEX], seats[BBL_PT4_INDEX]), image=img_before)
+                                img_before = self.object.PIL2CV(img_before)
                                 img_before = crop_with_argwhere(img_before)
                                 img_before = cv2.resize(img_before, (175, 35), interpolation=cv2.INTER_AREA)
-                                objects = self.object.difference(img_before, img_now_croped)
+
+
+                                objects, diff = self.object.difference(img_before, img_now_croped)
+                                if DEBUG_MODE:
+                                    cv2.namedWindow("seat: "+ str(seats[BBL_SEAT_NAME_INDEX]) +"input", cv2.WINDOW_NORMAL)
+                                    cv2.imshow("seat: "+str(seats[BBL_SEAT_NAME_INDEX])+"input", img_now_croped)
+                                    if diff is not None:
+                                        cv2.namedWindow("seat: "+ str(seats[BBL_SEAT_NAME_INDEX]) +"diff", cv2.WINDOW_NORMAL)
+                                        cv2.imshow("seat: "+str(seats[BBL_SEAT_NAME_INDEX])+"diff", diff)
+                                    cv2.waitKey(30)
                                 if objects==1:
                                     self.occupied_table.append([])
                                     self.occupied_table[-1].append(seats[BBL_SEAT_NAME_INDEX])
@@ -193,20 +208,19 @@ class yolo_detect():
                             img = crop_with_argwhere(img) # crop black area
                             img = self.object.CV2PIL(img)
 
-                            #r_image, people_num = yolo.detect_image(img)
+                            r_image, people_num = yolo.detect_image(img)
 
                             
                             for table in self.occupied_table:
                                 if table[0] == seats[BBL_SEAT_NAME_INDEX]:
                                     people_num += 1
             
-                        print("人數: " + str(people_num))
-                        #postdata_toserver["seat"]=seats[BBL_SEAT_NAME_INDEX]
-                        #postdata_toserver["location"]=seats[BBL_LOCATION_INDEX]
-                        #postdata_toserver["camera"]=seats[BBL_CAM_NAME_INDEX]
-                        #postdata_toserver["occupy"]=str(people_num)
-                        #r=requests.post('http://192.168.43.198:8000/create/', data = postdata_toserver)
-                        #print("Django Data: " + str(postdata_toserver) + "\n\n")
+                            postdata_toserver["seat"]=seats[BBL_SEAT_NAME_INDEX]
+                            postdata_toserver["location"]=seats[BBL_LOCATION_INDEX]
+                            postdata_toserver["camera"]=seats[BBL_CAM_NAME_INDEX]
+                            postdata_toserver["occupy"]=str(people_num)
+                            r=requests.post('http://192.168.43.198:8000/create/', data = postdata_toserver)
+                            print("Django Data: " + str(postdata_toserver) + "\n\n")
                     
                     #yolo.close_session()
                     self.occupied_table = []
@@ -1252,16 +1266,23 @@ def crop_polygon(img_path:str, point:list or tuple, **kwargs):
     crop the image with polygon mask. Background is Black.
     PIL Image format
     '''
-    print("--CROP POLYGON--")
+    if DEBUG_MODE:
+        print("--CROP POLYGON--")
 
     kwarg = kwargs.get("image", None)
     if kwarg != None:
         image = kwarg
     else:
         image = Image.open(img_path)
+
+    ob = Object_detect("")
+    image = ob.PIL2CV(image)
+    cv2.normalize(image, image, 0, 255, cv2.NORM_MINMAX)
+    image = ob.CV2PIL(image)
+
     xy = point
-    print(xy)
-    #print("xy: " + str(xy))
+    if DEBUG_MODE:
+        print("xy: " + str(xy))
 
     mask = Image.new("L", image.size, 0)
     draw = ImageDraw.Draw(mask)
@@ -1274,6 +1295,9 @@ def crop_polygon(img_path:str, point:list or tuple, **kwargs):
 
 # @Gareth Rees's solution
 def crop_with_argwhere(image):
+    '''
+    OpenCV image format
+    '''
     # Mask of non-black pixels (assuming image has a single channel).
     mask = image 
     
@@ -1450,10 +1474,5 @@ if __name__ == '__main__':
     #? ============ /frame 3 ===========
     
     tool.change_tool("point")
-    original_table_entry.insert(0,"1")
-    seat_number_entry.insert(0,"1")
-    camera_entry.insert(0,"1")
-    floor_entry.insert(0,"1")
-    ip_entry.insert(0,"192.168.137.211:8080/h264_pcm.sdp")
-
+    
     win.mainloop()
